@@ -1,0 +1,866 @@
+openapi: 3.0.3
+info:
+  title: Raw Backup API
+  version: 1.0.0-draft.2
+  description: >-
+    Typed dashboard API for the Raw Backup server. The server owns storage and
+    workflow operations; clients read status and may enqueue the no-delete
+    reconciliation operation.
+servers:
+  - url: https://rawbackup.example.invalid/api/v1
+    description: Raw Backup over the deployment's private overlay network
+security: []
+tags:
+  - name: Status
+  - name: Jobs
+  - name: Reconciliation
+paths:
+  /status:
+    get:
+      tags: [Status]
+      operationId: getStatus
+      summary: Get the latest server status snapshot
+      responses:
+        "200":
+          description: Latest successfully generated status snapshot
+          headers:
+            Cache-Control:
+              description: Status responses are not shared or reused by HTTP caches.
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusSnapshot"
+        "503":
+          $ref: "#/components/responses/StatusUnavailable"
+  /jobs:
+    get:
+      tags: [Jobs]
+      operationId: getActiveJobs
+      summary: Get active photo-workflow jobs
+      description: >-
+        Returns running jobs with recent progress snapshots. An empty jobs array
+        means the server has no active photo workflow.
+      responses:
+        "200":
+          description: Active jobs observed by the API server
+          headers:
+            Cache-Control:
+              description: Job responses are not shared or reused by HTTP caches.
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobsResponse"
+        "503":
+          $ref: "#/components/responses/JobsUnavailable"
+  /reconciliation:
+    get:
+      tags: [Reconciliation]
+      operationId: getReconciliation
+      summary: Get the latest reconciliation state
+      responses:
+        "200":
+          description: Latest reconciliation state
+          headers:
+            Cache-Control:
+              description: Reconciliation responses are not reused by HTTP caches.
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationStatus"
+        "503":
+          $ref: "#/components/responses/ReconciliationUnavailable"
+    post:
+      tags: [Reconciliation]
+      operationId: enqueueReconciliation
+      summary: Enqueue the no-delete reconciliation operation
+      description: >-
+        Copies files missing from Local, the external SSD, or Internxt. Existing
+        files are never deleted or overwritten. Same-path differences require
+        review. Repeating a request with the same idempotency key does not
+        create another reconciliation.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID generated once for a user's enqueue action.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          description: Reconciliation accepted or previously accepted with this key
+          headers:
+            Cache-Control:
+              description: Mutation responses are not reused by HTTP caches.
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationStatus"
+        "409":
+          description: A different reconciliation is already queued or running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationConflict"
+        "503":
+          $ref: "#/components/responses/ReconciliationUnavailable"
+components:
+  responses:
+    StatusUnavailable:
+      description: The first status snapshot is not available or cannot be read
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: status_unavailable
+            message: Waiting for the first status snapshot.
+            retryable: true
+    JobsUnavailable:
+      description: Active job snapshots cannot be read
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: jobs_unavailable
+            message: Active job status is temporarily unavailable.
+            retryable: true
+    ReconciliationUnavailable:
+      description: Reconciliation state cannot be read or a request cannot be queued
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: reconciliation_unavailable
+            message: Reconciliation is temporarily unavailable.
+            retryable: true
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        message:
+          type: string
+          description: Safe user-facing summary without internal command output.
+        retryable:
+          type: boolean
+          description: Whether retrying later may succeed without user intervention.
+    StatusSnapshot:
+      type: object
+      required: [generatedAt, pipeline, locations, cameras]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        pipeline:
+          $ref: "#/components/schemas/PipelineStatus"
+        locations:
+          $ref: "#/components/schemas/Locations"
+        cameras:
+          $ref: "#/components/schemas/CameraAudit"
+    PipelineStatus:
+      type: object
+      required:
+        - active
+        - importActive
+        - imports
+        - external
+        - internxt
+        - internxtSidecars
+        - reconciliationOperation
+        - flows
+      properties:
+        active:
+          type: boolean
+        importActive:
+          type: boolean
+        imports:
+          type: array
+          items:
+            $ref: "#/components/schemas/OperationStatus"
+        external:
+          $ref: "#/components/schemas/OperationStatus"
+        internxt:
+          $ref: "#/components/schemas/OperationStatus"
+        internxtSidecars:
+          $ref: "#/components/schemas/OperationStatus"
+        reconciliationOperation:
+          $ref: "#/components/schemas/OperationStatus"
+        flows:
+          $ref: "#/components/schemas/PipelineFlows"
+    OperationStatus:
+      type: object
+      required:
+        - id
+        - state
+        - result
+        - startedAt
+        - finishedAt
+        - lastRunAt
+        - jobId
+      properties:
+        id:
+          type: string
+        state:
+          $ref: "#/components/schemas/OperationState"
+        result:
+          $ref: "#/components/schemas/OperationResult"
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        jobId:
+          type: string
+          nullable: true
+          description: Active job identifier resolved through GET /jobs.
+    FlowStatus:
+      allOf:
+        - $ref: "#/components/schemas/OperationStatus"
+        - type: object
+          required: [sync]
+          properties:
+            sync:
+              $ref: "#/components/schemas/SyncState"
+    PipelineFlows:
+      type: object
+      required:
+        - sdToLocalRaw
+        - localToSsdRaw
+        - ssdToLocalSidecars
+        - localToInternxtRaw
+        - localToInternxtSidecars
+      properties:
+        sdToLocalRaw:
+          $ref: "#/components/schemas/FlowStatus"
+        localToSsdRaw:
+          $ref: "#/components/schemas/FlowStatus"
+        ssdToLocalSidecars:
+          $ref: "#/components/schemas/FlowStatus"
+        localToInternxtRaw:
+          $ref: "#/components/schemas/FlowStatus"
+        localToInternxtSidecars:
+          $ref: "#/components/schemas/FlowStatus"
+    SyncState:
+      type: string
+      enum:
+        - available
+        - behind
+        - current
+        - inventory-incomplete
+        - mismatch
+        - mounted
+        - mount-pending
+        - not-verified
+        - source
+        - syncing
+        - unavailable
+        - unknown
+    OperationState:
+      type: string
+      description: Normalized lifecycle state, independent of runtime implementation.
+      enum:
+        - active
+        - starting
+        - inactive
+        - stopping
+        - failed
+        - unknown
+    OperationResult:
+      type: string
+      description: Normalized result of the current or most recent operation.
+      enum:
+        - running
+        - success
+        - failed
+        - not-run
+        - unknown
+    Inventory:
+      type: object
+      required: [fileCount, bytes, newestMtimeEpoch, pathVerification]
+      properties:
+        fileCount:
+          type: integer
+          format: int64
+          minimum: 0
+        bytes:
+          type: integer
+          format: int64
+          minimum: 0
+        newestMtimeEpoch:
+          type: integer
+          format: int64
+          minimum: 0
+        pathVerification:
+          allOf:
+            - $ref: "#/components/schemas/PathVerification"
+          nullable: true
+    PathVerification:
+      type: object
+      required:
+        - checked
+        - present
+        - missing
+        - enumerationIncomplete
+        - enumeratedFileCount
+      properties:
+        checked:
+          type: integer
+          format: int64
+          minimum: 0
+        present:
+          type: integer
+          format: int64
+          minimum: 0
+        missing:
+          type: integer
+          format: int64
+          minimum: 0
+        enumerationIncomplete:
+          type: boolean
+        enumeratedFileCount:
+          type: integer
+          format: int64
+          minimum: 0
+    RawDirectoryInventory:
+      type: object
+      required: [raw, sidecars, fileCount, bytes, newestMtimeEpoch]
+      properties:
+        raw:
+          $ref: "#/components/schemas/Inventory"
+        sidecars:
+          $ref: "#/components/schemas/Inventory"
+        fileCount:
+          type: integer
+          format: int64
+          minimum: 0
+        bytes:
+          type: integer
+          format: int64
+          minimum: 0
+        newestMtimeEpoch:
+          type: integer
+          format: int64
+          minimum: 0
+    BasicInventory:
+      type: object
+      required: [fileCount, bytes]
+      properties:
+        fileCount:
+          type: integer
+          format: int64
+          minimum: 0
+        bytes:
+          type: integer
+          format: int64
+          minimum: 0
+    RemoteInventory:
+      type: object
+      required: [checkedAt, raw, sidecars, error]
+      properties:
+        checkedAt:
+          type: string
+          format: date-time
+          nullable: true
+        raw:
+          allOf:
+            - $ref: "#/components/schemas/BasicInventory"
+          nullable: true
+        sidecars:
+          allOf:
+            - $ref: "#/components/schemas/BasicInventory"
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    LocalLocation:
+      allOf:
+        - $ref: "#/components/schemas/RawDirectoryInventory"
+        - type: object
+          required: [sync]
+          properties:
+            sync:
+              $ref: "#/components/schemas/SyncState"
+    SsdLocation:
+      type: object
+      required: [present, mounted, sync, inventory]
+      properties:
+        present:
+          type: boolean
+        mounted:
+          type: boolean
+        sync:
+          $ref: "#/components/schemas/SyncState"
+        inventory:
+          allOf:
+            - $ref: "#/components/schemas/RawDirectoryInventory"
+          nullable: true
+    InternxtLocation:
+      allOf:
+        - $ref: "#/components/schemas/RemoteInventory"
+        - type: object
+          required: [sync]
+          properties:
+            sync:
+              $ref: "#/components/schemas/SyncState"
+    Locations:
+      type: object
+      required: [local, ssd, internxt]
+      properties:
+        local:
+          $ref: "#/components/schemas/LocalLocation"
+        ssd:
+          $ref: "#/components/schemas/SsdLocation"
+        internxt:
+          $ref: "#/components/schemas/InternxtLocation"
+    CameraAudit:
+      type: object
+      required:
+        - checkedAt
+        - importJobId
+        - importCompletedAt
+        - filesInspected
+        - cameras
+        - error
+      properties:
+        checkedAt:
+          type: string
+          format: date-time
+        importJobId:
+          type: string
+          nullable: true
+        importCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        filesInspected:
+          type: integer
+          minimum: 0
+          nullable: true
+        cameras:
+          type: array
+          items:
+            $ref: "#/components/schemas/CameraStatus"
+        error:
+          type: string
+          nullable: true
+    CameraStatus:
+      type: object
+      required: [camera, latestCaptureAt]
+      properties:
+        camera:
+          type: string
+        latestCaptureAt:
+          type: string
+          description: Camera metadata capture timestamp as emitted by ExifTool.
+    JobsResponse:
+      type: object
+      required: [observedAt, jobs]
+      properties:
+        observedAt:
+          type: string
+          format: date-time
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobSnapshot"
+    JobSnapshot:
+      type: object
+      required:
+        - id
+        - kind
+        - title
+        - state
+        - result
+        - phase
+        - message
+        - direction
+        - startedAt
+        - updatedAt
+        - finishedAt
+        - step
+        - totalSteps
+        - currentFile
+        - recentFiles
+        - progress
+        - history
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: "#/components/schemas/JobKind"
+        title:
+          type: string
+        state:
+          $ref: "#/components/schemas/JobState"
+        result:
+          allOf:
+            - $ref: "#/components/schemas/JobResult"
+          nullable: true
+        phase:
+          $ref: "#/components/schemas/JobPhase"
+        message:
+          type: string
+        direction:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        step:
+          type: integer
+          minimum: 0
+          nullable: true
+        totalSteps:
+          type: integer
+          minimum: 0
+          nullable: true
+        currentFile:
+          type: string
+          nullable: true
+          description: Sanitized relative path, limited by the producer to 500 characters.
+        recentFiles:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+        progress:
+          $ref: "#/components/schemas/JobProgress"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobHistoryEntry"
+    JobProgress:
+      type: object
+      required:
+        - filesCompleted
+        - filesTotal
+        - bytesCompleted
+        - bytesTotal
+        - speedBytesPerSecond
+        - etaSeconds
+        - percent
+      properties:
+        filesCompleted:
+          type: integer
+          format: int64
+          minimum: 0
+        filesTotal:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+        bytesCompleted:
+          type: integer
+          format: int64
+          minimum: 0
+        bytesTotal:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+        speedBytesPerSecond:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+        etaSeconds:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        percent:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          nullable: true
+    JobHistoryEntry:
+      type: object
+      required:
+        - phase
+        - message
+        - direction
+        - status
+        - result
+        - startedAt
+        - finishedAt
+        - durationSeconds
+        - progress
+        - currentFile
+        - updates
+      properties:
+        phase:
+          $ref: "#/components/schemas/JobPhase"
+        message:
+          type: string
+          nullable: true
+        direction:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/JobHistoryState"
+        result:
+          allOf:
+            - $ref: "#/components/schemas/JobResult"
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationSeconds:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        progress:
+          $ref: "#/components/schemas/JobProgressSummary"
+        currentFile:
+          type: string
+          nullable: true
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobHistoryUpdate"
+    JobHistoryUpdate:
+      type: object
+      required: [at, message, direction]
+      properties:
+        at:
+          type: string
+          format: date-time
+        message:
+          type: string
+          nullable: true
+        direction:
+          type: string
+          nullable: true
+    JobProgressSummary:
+      type: object
+      description: Partial progress captured at a phase boundary or update.
+      properties:
+        filesCompleted:
+          type: integer
+          format: int64
+          minimum: 0
+        filesTotal:
+          type: integer
+          format: int64
+          minimum: 0
+        bytesCompleted:
+          type: integer
+          format: int64
+          minimum: 0
+        bytesTotal:
+          type: integer
+          format: int64
+          minimum: 0
+        speedBytesPerSecond:
+          type: integer
+          format: int64
+          minimum: 0
+        etaSeconds:
+          type: number
+          format: double
+          minimum: 0
+        percent:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+    JobKind:
+      type: string
+      enum:
+        - external-sync
+        - sd-import
+        - internxt-backup
+        - internxt-sidecars
+        - internxt-check
+        - reconciliation
+    JobState:
+      type: string
+      enum:
+        - running
+        - finished
+    JobResult:
+      type: string
+      enum:
+        - success
+        - failed
+        - needs-review
+    JobHistoryState:
+      type: string
+      description: Normalized lifecycle state for one recorded phase.
+      enum:
+        - active
+        - completed
+    JobPhase:
+      type: string
+      description: Closed set of workflow phases rendered by dashboard clients.
+      enum:
+        - waiting-for-lock
+        - mounting
+        - scanning
+        - staging
+        - organizing
+        - checking-conflicts
+        - promoting
+        - syncing-sidecars
+        - planning
+        - checksumming
+        - checksumming-candidates
+        - reviewing-conflicts
+        - quarantining-conflicts
+        - copying
+        - comparing
+        - uploading
+        - verifying
+        - preparing
+        - checking-ssd
+        - checking-ssd-conflicts
+        - copying-internxt-to-local
+        - copying-ssd-to-local
+        - copying-local-to-ssd
+        - copying-local-to-internxt
+        - measuring-inventories
+        - verifying-local-to-internxt
+        - verifying-internxt-to-local
+        - finalizing
+        - completed
+        - failed
+    ReconciliationStatus:
+      type: object
+      required:
+        - requestId
+        - state
+        - result
+        - message
+        - startedAt
+        - updatedAt
+        - finishedAt
+        - phase
+        - step
+        - totalSteps
+        - reportAvailable
+        - inventories
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          nullable: true
+        state:
+          $ref: "#/components/schemas/ReconciliationState"
+        result:
+          allOf:
+            - $ref: "#/components/schemas/ReconciliationResult"
+          nullable: true
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        phase:
+          allOf:
+            - $ref: "#/components/schemas/JobPhase"
+          nullable: true
+        step:
+          type: integer
+          minimum: 0
+          nullable: true
+        totalSteps:
+          type: integer
+          minimum: 0
+          nullable: true
+        reportAvailable:
+          type: boolean
+        inventories:
+          allOf:
+            - $ref: "#/components/schemas/ReconciliationInventories"
+          nullable: true
+    ReconciliationInventories:
+      type: object
+      required: [local, ssd, internxt]
+      properties:
+        local:
+          $ref: "#/components/schemas/BasicInventory"
+        ssd:
+          $ref: "#/components/schemas/BasicInventory"
+        internxt:
+          $ref: "#/components/schemas/BasicInventory"
+    ReconciliationState:
+      type: string
+      enum:
+        - idle
+        - queued
+        - running
+        - completed
+        - needs-review
+        - failed
+    ReconciliationResult:
+      type: string
+      enum:
+        - success
+        - conflicts
+        - failed
+    ErrorCode:
+      type: string
+      enum:
+        - status_unavailable
+        - jobs_unavailable
+        - reconciliation_unavailable
+        - reconciliation_in_progress
+    ReconciliationConflict:
+      type: object
+      required: [error, reconciliation]
+      properties:
+        error:
+          allOf:
+            - $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: reconciliation_in_progress
+            message: A reconciliation is already queued or running.
+            retryable: false
+        reconciliation:
+          $ref: "#/components/schemas/ReconciliationStatus"
