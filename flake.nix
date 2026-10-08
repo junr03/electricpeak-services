@@ -13,6 +13,7 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
+      rawbackup = self.lib.mkRawbackupPackages { inherit pkgs; };
       workflows = self.lib.mkPhotoWorkflowPackages {
         inherit pkgs;
         renamePicture = pkgs.callPackage "${gallatin}/rename-picture.nix" { };
@@ -23,10 +24,15 @@
         internxtPasswordSecret = "/run/secrets/internxt-password";
       };
     in {
-      lib.mkPhotoWorkflowPackages = import ./services/rawbackup/photo-workflow/packages.nix;
-      packages.${system}.photo-workflow = pkgs.symlinkJoin {
-        name = "photo-workflow";
-        paths = builtins.attrValues workflows;
+      lib = {
+        mkRawbackupPackages = import ./services/rawbackup/rust/packages.nix;
+        mkPhotoWorkflowPackages = import ./services/rawbackup/photo-workflow/packages.nix;
+      };
+      packages.${system} = rawbackup // {
+        photo-workflow = pkgs.symlinkJoin {
+          name = "photo-workflow";
+          paths = builtins.attrValues workflows;
+        };
       };
       checks.${system} = self.packages.${system} // {
         rawbackup-api-contract = pkgs.runCommand "rawbackup-api-contract" {
