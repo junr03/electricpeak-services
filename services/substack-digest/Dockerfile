@@ -1,8 +1,11 @@
 FROM rust:1.98.0-bookworm@sha256:4e4a7e7939c17991ab35f2b8c2e67593980f771d28f6b1254b1850f860fd0c7f AS builder
+RUN rustup component add rustfmt clippy
 WORKDIR /build
 COPY rust ./rust
 COPY fixtures ./fixtures
-RUN cargo build --release --locked --manifest-path rust/Cargo.toml -p substack-digest \
+RUN cargo fmt --manifest-path rust/Cargo.toml --all -- --check \
+    && cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- --deny warnings \
+    && cargo build --release --locked --manifest-path rust/Cargo.toml -p substack-digest \
     && cargo test --locked --manifest-path rust/Cargo.toml -p substack-digest
 
 # Chromium and Node from the official browser image; no Python service runtime.

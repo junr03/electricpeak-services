@@ -296,10 +296,7 @@ mod tests {
         }
     }
     fn config() -> Config {
-        serde_json::from_str(include_str!(
-            "../../../../fixtures/config.json"
-        ))
-        .unwrap()
+        serde_json::from_str(include_str!("../../../../fixtures/config.json")).unwrap()
     }
     fn now() -> DateTime<Utc> {
         "2026-10-07T11:00:00Z".parse().unwrap()
