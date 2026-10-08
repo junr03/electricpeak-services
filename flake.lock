@@ -1,0 +1,45 @@
+{
+  "nodes": {
+    "gallatin": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789424857,
+        "narHash": "sha256-qHML7gFnWAZCKVnwehasJBxx+FjH4pUC2sI1RL3kB9Y=",
+        "owner": "junr03",
+        "repo": "gallatin",
+        "rev": "e6ca46f2fe0c02a396142ffbfd1864f517453b85",
+        "type": "github"
+      },
+      "original": {
+        "owner": "junr03",
+        "repo": "gallatin",
+        "rev": "e6ca46f2fe0c02a396142ffbfd1864f517453b85",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1789006805,
+        "narHash": "sha256-xB8mKMOx1IA9vTDNLmJZ6n4wCMq/cuWBBOzGCRnqxrU=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "8ce4ef6cb6f871616146b9fe26d2a5ae594e94fe",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "gallatin": "gallatin",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
