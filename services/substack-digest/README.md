@@ -169,3 +169,21 @@ fixture in the production
 container restrictions, verifies PDF dimensions/text and paywall handling,
 and attaches the sample PDF. The normal Compose CI generates the Nix container
 module; do not hand-edit or commit the generated file for this change.
+
+## Packaging and CI
+
+This project owns the Rust service and locked Cargo workspace,
+Chromium/Node container packaging, npm lock, offline PDF fixtures and checks,
+and application documentation. Its image is
+`ghcr.io/junr03/electricpeak-services/substack-digest`. The independent workflow
+builds and unit-tests the Rust binary, renders an offline sample under production
+container restrictions, checks PDF dimensions and text, publishes the image,
+and pulls it anonymously on a fresh runner. No account access is used in CI.
+
+```sh
+docker build -t substack-digest:test services/substack-digest
+scripts/smoke-substack-digest.sh substack-digest:test
+```
+
+The smoke test needs `pdfinfo` and `pdftotext` from Poppler. Host activation,
+scheduling, configuration mirroring and secret references stay in Electricpeak.
