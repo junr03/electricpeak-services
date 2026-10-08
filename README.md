@@ -8,7 +8,7 @@ mounts, device rules, systemd units, schedules, and network policy.
 
 ## Raw Backup
 
-All current bespoke application code belongs to the Raw Backup photo workflow:
+The Raw Backup photo workflow contains:
 
 - `services/rawbackup/web`: existing Python HTTP server and HTML dashboard.
 - `services/rawbackup/photo-workflow`: import, sync, reconciliation, progress,
@@ -66,9 +66,29 @@ The current file-based host/web interface is documented in
 [the runtime contract](services/rawbackup/docs/runtime.md). Changes to shared
 files or API behavior require compatible producer and consumer updates.
 
+## Substack Digest
+
+`services/substack-digest` owns the Rust service and locked Cargo workspace,
+Chromium/Node container packaging, npm lock, offline PDF fixtures and checks,
+and application documentation. Its image is
+`ghcr.io/junr03/electricpeak-services/substack-digest`. The independent workflow
+builds and unit-tests the Rust binary, renders an offline sample under production
+container restrictions, checks PDF dimensions and text, publishes the image,
+and pulls it anonymously on a fresh runner. No account access is used in CI.
+
+```sh
+docker build -t substack-digest:test services/substack-digest
+scripts/smoke-substack-digest.sh substack-digest:test
+```
+
+The smoke test needs `pdfinfo` and `pdftotext` from Poppler. Host activation,
+scheduling, configuration mirroring and secret references stay in Electricpeak.
+See [Substack Digest](services/substack-digest/README.md) for application behavior.
+
 ## Origin
 
-Initially extracted from `junr03/electricpeak` commit
-`0eb76b601245663e277e1b8609f0539acbeafc44`. Host configuration helpers such as
+Extracted from the public `junr03/electricpeak` main at
+`08230934ca4a112711d32cad9cec1e3f36f23dee`. Host configuration helpers such as
 1Password setup, Home Manager mirroring, and third-party service initialization
-remain in Electricpeak.
+remain in Electricpeak. Trusted branch pushes publish each application's image
+so consumers can promote a coherent source revision with separate image digests.

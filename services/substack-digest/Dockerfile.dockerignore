@@ -1,0 +1,9 @@
+**
+!rust/
+!rust/**
+!fixtures/
+!fixtures/**
+!package.json
+!package-lock.json
+rust/target/
+**/__pycache__/
