@@ -1,0 +1,79 @@
+name: Raw Backup
+on:
+  pull_request:
+    paths: ['services/rawbackup/**', 'scripts/**', 'flake.*', '.github/workflows/rawbackup.yml']
+  push:
+    branches: [main, 'jnr/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Rust formatting
+        run: nix develop --command cargo fmt --manifest-path services/rawbackup/rust/Cargo.toml --all -- --check
+      - name: Rust Clippy
+        run: nix develop --command cargo clippy --manifest-path services/rawbackup/rust/Cargo.toml --workspace --all-targets --locked -- --deny warnings
+      - name: Build packages and run Rust, Python, and contract checks
+        run: nix flake check --print-build-logs
+  image:
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build candidate
+        uses: docker/build-push-action@v6
+        with:
+          context: services/rawbackup
+          load: true
+          platforms: linux/amd64
+          tags: rawbackup:test
+      - name: Test container against isolated fixture data
+        run: scripts/smoke-rawbackup.sh rawbackup:test
+      - name: Log into GHCR for trusted branch publication
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish revision-addressed candidate
+        if: github.event_name != 'pull_request'
+        id: publish
+        uses: docker/build-push-action@v6
+        with:
+          context: services/rawbackup
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/junr03/electricpeak-services/rawbackup:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/junr03/electricpeak-services
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Record immutable image reference
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.publish.outputs.digest }}
+        run: echo "ghcr.io/junr03/electricpeak-services/rawbackup@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+  public-pull:
+    if: github.event_name != 'pull_request'
+    needs: [test, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull published image anonymously and test it
+        env:
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          export DOCKER_CONFIG
+          DOCKER_CONFIG=$(mktemp -d)
+          image="ghcr.io/junr03/electricpeak-services/rawbackup@$DIGEST"
+          docker pull --platform linux/amd64 "$image"
+          scripts/smoke-rawbackup.sh "$image"

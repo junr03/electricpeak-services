@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Raw Backup</title>
+    <style>
+      :root { color-scheme:dark; --bg:#0b1017; --panel:#141c27; --panel-strong:#192432; --line:#2b394b; --text:#f4f8fc; --muted:#9dabbc; --good:#45dda0; --warn:#f6be55; --bad:#ff7979; --blue:#79b8ff; --violet:#a98cff; }
+      * { box-sizing:border-box; }
+      body { margin:0; background:radial-gradient(circle at 20% -10%,#172842 0,transparent 34rem),var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+      main { max-width:1120px; margin:auto; padding:clamp(1.25rem,4vw,4rem) 1.25rem 3rem; }
+      header { display:flex; justify-content:space-between; gap:1rem; align-items:start; margin-bottom:2rem; }
+      h1 { margin:0; font-size:clamp(2rem,5vw,3.5rem); letter-spacing:-.05em; }
+      h2 { margin:0 0 .75rem; font-size:1rem; }
+      p { margin:.25rem 0; }
+      .eyebrow,.muted { color:var(--muted); }
+      .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:.75rem; font-weight:750; }
+      .summary { padding:1rem 1.25rem; border-radius:1rem; border:1px solid var(--line); background:color-mix(in srgb,var(--panel) 92%,transparent); min-width:14rem; box-shadow:0 18px 50px rgba(0,0,0,.18); }
+      .summary strong { display:block; font-size:1.1rem; }
+      section { margin-top:1.5rem; }
+      .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1rem; }
+      .card { border:1px solid var(--line); border-radius:1rem; padding:1.25rem; background:var(--panel); }
+      .card dl { display:grid; grid-template-columns:auto 1fr; gap:.45rem .75rem; margin:1rem 0 0; }
+      dt { color:var(--muted); }
+      dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+      .badge { display:inline-flex; align-items:center; gap:.45rem; border-radius:999px; padding:.25rem .65rem; font-weight:700; font-size:.82rem; background:#253344; }
+      .badge::before { content:""; width:.55rem; height:.55rem; border-radius:50%; background:currentColor; }
+      .good { color:var(--good); } .warn { color:var(--warn); } .bad { color:var(--bad); } .blue { color:var(--blue); }
+      button { margin-top:.8rem; border:1px solid var(--blue); border-radius:.6rem; padding:.55rem .8rem; color:var(--bg); background:var(--blue); font:inherit; font-weight:700; cursor:pointer; }
+      button:disabled { cursor:wait; opacity:.6; }
+      .active-shell { position:relative; overflow:hidden; padding:1.1rem; border:1px solid #354b67; border-radius:1.25rem; background:linear-gradient(145deg,rgba(25,38,54,.96),rgba(15,24,35,.98)); box-shadow:0 22px 70px rgba(0,0,0,.24); }
+      .active-shell::before { content:""; position:absolute; inset:-8rem auto auto -5rem; width:18rem; height:18rem; border-radius:50%; background:rgba(121,184,255,.09); filter:blur(10px); pointer-events:none; }
+      .section-heading { position:relative; display:flex; justify-content:space-between; align-items:center; gap:1rem; margin:.1rem .15rem 1rem; }
+      .section-heading h2 { margin:0; font-size:1.08rem; }
+      .live-pill { display:inline-flex; align-items:center; gap:.5rem; padding:.28rem .68rem; border:1px solid #385474; border-radius:999px; color:var(--blue); background:rgba(121,184,255,.08); font-size:.76rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+      .live-pill::before { content:""; width:.48rem; height:.48rem; border-radius:50%; background:currentColor; box-shadow:0 0 0 .25rem rgba(121,184,255,.1); animation:pulse 1.8s ease-in-out infinite; }
+      .live-pill.idle { color:var(--good); border-color:rgba(69,221,160,.28); background:rgba(69,221,160,.07); }
+      .live-pill.idle::before { animation:none; }
+      .job-grid { position:relative; display:grid; gap:.9rem; }
+      .job-card { position:relative; overflow:hidden; padding:1.15rem; border:1px solid #32455c; border-radius:1rem; background:linear-gradient(135deg,rgba(27,40,57,.96),rgba(18,28,40,.98)); box-shadow:0 12px 34px rgba(0,0,0,.18); }
+      .job-card::before { content:""; position:absolute; inset:0 0 auto; height:2px; background:linear-gradient(90deg,var(--blue),var(--violet),var(--good)); }
+      .job-top { display:flex; align-items:flex-start; gap:.8rem; }
+      .job-icon { display:grid; place-items:center; flex:0 0 2.6rem; height:2.6rem; border-radius:.8rem; color:#d9ebff; background:linear-gradient(145deg,#294666,#25344e); font-weight:850; letter-spacing:-.04em; }
+      .job-heading { min-width:0; flex:1; }
+      .job-title-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem .7rem; }
+      .job-title { margin:0; font-size:1.03rem; letter-spacing:-.015em; }
+      .phase-pill,.direction-pill { display:inline-flex; align-items:center; min-height:1.6rem; padding:.18rem .52rem; border-radius:999px; font-size:.73rem; font-weight:750; }
+      .phase-pill { color:var(--blue); background:rgba(121,184,255,.11); border:1px solid rgba(121,184,255,.2); text-transform:capitalize; }
+      .direction-pill { margin-top:.38rem; color:#c8d3df; background:rgba(255,255,255,.045); }
+      .job-message { margin:.72rem 0 .8rem; color:#c7d1dc; }
+      .progress-row { display:flex; align-items:center; gap:.8rem; }
+      .progress-track { position:relative; overflow:hidden; flex:1; height:.66rem; border-radius:999px; background:#0c141e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.045); }
+      .progress-fill { height:100%; min-width:.3rem; border-radius:inherit; background:linear-gradient(90deg,#579eff,var(--blue) 55%,#65e1be); box-shadow:0 0 18px rgba(121,184,255,.36); transition:width .45s ease; }
+      .progress-fill.indeterminate { width:38%; animation:scan 1.45s ease-in-out infinite; }
+      .progress-percent { min-width:3.4rem; text-align:right; color:#dbe9f6; font-weight:800; font-variant-numeric:tabular-nums; }
+      .job-metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.55rem; margin-top:.9rem; }
+      .metric { min-width:0; padding:.62rem .68rem; border-radius:.72rem; background:rgba(8,15,23,.46); border:1px solid rgba(255,255,255,.045); }
+      .metric-label { display:block; color:var(--muted); font-size:.68rem; letter-spacing:.07em; text-transform:uppercase; }
+      .metric-value { display:block; margin-top:.15rem; overflow:hidden; color:#f1f6fb; font-size:.88rem; font-weight:750; font-variant-numeric:tabular-nums; text-overflow:ellipsis; white-space:nowrap; }
+      .file-activity { margin-top:.85rem; padding:.72rem .8rem; border-radius:.75rem; background:#0c141e; border:1px solid rgba(121,184,255,.12); }
+      .file-label { display:block; margin-bottom:.22rem; color:var(--muted); font-size:.68rem; letter-spacing:.07em; text-transform:uppercase; }
+      .file-path { display:block; overflow:hidden; color:#d9e9fa; font:500 .8rem/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; text-overflow:ellipsis; white-space:nowrap; }
+      .recent-files { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.55rem; }
+      .recent-file { max-width:100%; overflow:hidden; padding:.2rem .46rem; border-radius:.4rem; color:#9fb0c2; background:rgba(255,255,255,.035); font:500 .7rem/1.35 ui-monospace,SFMono-Regular,Consolas,monospace; text-overflow:ellipsis; white-space:nowrap; }
+      .job-history { margin-top:.9rem; padding:.85rem .9rem .15rem; border:1px solid rgba(255,255,255,.06); border-radius:.8rem; background:rgba(8,15,23,.28); }
+      .job-history-heading { margin:0 0 .65rem; color:#dbe9f6; font-size:.76rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+      .history-list { list-style:none; margin:0; padding:0; }
+      .history-item { position:relative; display:grid; grid-template-columns:1.35rem 1fr; gap:.55rem; padding:0 0 .85rem; }
+      .history-item:not(:last-child)::before { content:""; position:absolute; left:.59rem; top:1.05rem; bottom:.1rem; width:1px; background:#3a4c61; }
+      .history-marker { position:relative; z-index:1; display:grid; place-items:center; width:1.2rem; height:1.2rem; margin-top:.08rem; border:2px solid #5f7691; border-radius:50%; color:#c9d9e9; background:#172333; font-size:.62rem; }
+      .history-item.current .history-marker { border-color:var(--blue); color:var(--blue); box-shadow:0 0 0 .2rem rgba(121,184,255,.08); }
+      .history-item.complete .history-marker { border-color:var(--good); color:var(--good); }
+      .history-content { min-width:0; }
+      .history-title-row { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25rem .6rem; }
+      .history-phase { color:#eef6fd; font-size:.86rem; font-weight:800; }
+      .history-state { color:var(--muted); font-size:.7rem; font-variant-numeric:tabular-nums; }
+      .history-message { margin:.12rem 0 0; color:#b7c5d3; font-size:.78rem; }
+      .history-meta { margin-top:.18rem; color:#8193a7; font-size:.7rem; font-variant-numeric:tabular-nums; }
+      .history-progress { margin-top:.22rem; color:#9fb4c8; font-size:.7rem; font-variant-numeric:tabular-nums; }
+      .history-file { overflow:hidden; margin-top:.22rem; color:#9fb0c2; font:500 .7rem/1.35 ui-monospace,SFMono-Regular,Consolas,monospace; text-overflow:ellipsis; white-space:nowrap; }
+      .history-updates { margin-top:.35rem; }
+      .history-updates summary { color:#91b9df; cursor:pointer; font-size:.7rem; }
+      .history-updates ul { margin:.3rem 0 0; padding-left:1rem; color:#9fb0c2; font-size:.7rem; }
+      .history-updates li { margin:.18rem 0; }
+      .job-empty { display:flex; align-items:center; gap:.8rem; padding:1rem; border:1px dashed #34485e; border-radius:.9rem; color:var(--muted); background:rgba(9,16,25,.28); }
+      .job-empty-icon { display:grid; place-items:center; width:2.1rem; height:2.1rem; border-radius:50%; color:var(--good); background:rgba(69,221,160,.09); font-weight:900; }
+      .runs { overflow:auto; }
+      table { border-collapse:collapse; width:100%; min-width:620px; }
+      th,td { text-align:left; padding:.8rem .5rem; border-bottom:1px solid var(--line); }
+      th { color:var(--muted); font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; }
+      td:last-child,th:last-child { text-align:right; }
+      .empty { color:var(--muted); } .error { border-color:var(--bad); color:#ffd1d1; }
+      @keyframes pulse { 50% { opacity:.45; transform:scale(.82); } }
+      @keyframes scan { from { transform:translateX(-115%); } to { transform:translateX(270%); } }
+      @media (max-width:820px) { .job-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+      @media (max-width:650px) { header { flex-direction:column; } .summary { width:100%; } .job-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .job-top { align-items:center; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div><p class="eyebrow">Electric Peak</p><h1>Raw Backup</h1><p class="muted">Photo pipeline health and storage consistency.</p></div>
+        <div class="summary" aria-live="polite"><strong id="headline">Loading status…</strong><span class="muted" id="updated">Connecting to the host snapshot</span></div>
+      </header>
+      <section class="active-shell" aria-labelledby="active-jobs-heading">
+        <div class="section-heading"><div><p class="eyebrow">Live operations</p><h2 id="active-jobs-heading">Active jobs</h2></div><span class="live-pill idle" id="jobs-live">All clear</span></div>
+        <div class="job-grid" id="active-jobs" aria-live="polite"><div class="job-empty"><span class="job-empty-icon">✓</span><span>No photo jobs are active right now.</span></div></div>
+      </section>
+      <section aria-labelledby="locations-heading"><h2 id="locations-heading">Locations</h2><div class="grid" id="locations"></div></section>
+      <section class="card" aria-labelledby="reconcile-heading"><h2 id="reconcile-heading">No-delete reconciliation</h2><p class="muted">Copies missing RAW files and sidecars between Local, SSD, and Internxt. It never deletes or overwrites; same-path differences are reported for review.</p><div id="reconcile-status" class="muted">Checking reconciliation status…</div><button id="reconcile-button" type="button">Reconcile missing files</button></section>
+      <section class="card runs" aria-labelledby="runs-heading"><h2 id="runs-heading">Backup activity</h2><p id="raw-sync-note" class="muted">RAW photos are union-synced between Local and the SSD: files found on either location are copied to the other, and existing files are never overwritten.</p><table><thead><tr><th>Flow</th><th>State</th><th>Last run</th><th>Result</th></tr></thead><tbody id="runs"></tbody></table></section>
+      <section class="card runs" aria-labelledby="cameras-heading"><h2 id="cameras-heading">Latest SD import: RAW captures by camera</h2><p id="camera-note" class="muted">Checking the latest SD import…</p><table><thead><tr><th>Camera</th><th>Latest capture</th></tr></thead><tbody id="cameras"></tbody></table></section>
+    </main>
+    <script>
+      const formatBytes = bytes => bytes == null ? "Not audited" : new Intl.NumberFormat(undefined,{style:"unit",unit:"gigabyte",maximumFractionDigits:1}).format(bytes / 1e9);
+      const formatNumber = count => count == null ? "Not audited" : new Intl.NumberFormat().format(count);
+      const formatTime = value => value ? new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value)) : "Never";
+      const formatClock = value => value ? new Intl.DateTimeFormat(undefined,{timeStyle:"short"}).format(new Date(value)) : "—";
+      const formatAdaptiveBytes = bytes => {
+        if (!Number.isFinite(bytes)) return "—";
+        const units = ["B","KB","MB","GB","TB"];
+        let value = Math.max(0, bytes), unit = 0;
+        while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1; }
+        return `${new Intl.NumberFormat(undefined,{maximumFractionDigits:value >= 100 ? 0 : value >= 10 ? 1 : 2}).format(value)} ${units[unit]}`;
+      };
+      const formatDuration = seconds => {
+        if (!Number.isFinite(seconds) || seconds < 0) return "—";
+        const rounded = Math.round(seconds);
+        if (rounded < 60) return `${rounded}s`;
+        const minutes = Math.floor(rounded / 60), remainder = rounded % 60;
+        if (minutes < 60) return `${minutes}m ${remainder}s`;
+        const hours = Math.floor(minutes / 60);
+        return `${hours}h ${minutes % 60}m`;
+      };
+      const label = state => ({current:"Current", source:"Source of truth", idle:"Idle", syncing:"Syncing", mounted:"Mounted", available:"Detected, not mounted", "mount-pending":"Waiting for mount", behind:"Changes pending", mismatch:"Out of sync", "inventory-incomplete":"Directory listing incomplete", unavailable:"Unavailable", "not-verified":"Not verified", unknown:"Unknown", queued:"Queued", running:"Running", completed:"Completed", "needs-review":"Needs review", failed:"Failed"}[state] || state);
+      const tone = state => (["current","source","idle","mounted","completed"].includes(state) ? "good" : ["syncing","queued","running"].includes(state) ? "blue" : ["available","mount-pending","behind","unavailable","not-verified","unknown","needs-review","inventory-incomplete"].includes(state) ? "warn" : "bad");
+      const badge = state => `<span class="badge ${tone(state)}">${label(state)}</span>`;
+      const formatCaptureDate = value => value ? value.replace(/^(\d{4}):(\d{2}):(\d{2}).*$/, "$1-$2-$3") : "Not available";
+      const inventoryDetails = inventory => inventory ? `<dt>RAW files</dt><dd>${formatNumber(inventory.raw?.fileCount)} · ${formatBytes(inventory.raw?.bytes)}</dd><dt>Sidecars</dt><dd>${formatNumber(inventory.sidecars?.fileCount)} · ${formatBytes(inventory.sidecars?.bytes)}</dd>${inventory.raw?.pathVerification?.enumerationIncomplete ? `<dt>Inventory</dt><dd>All Local RAW paths resolve; directory listing returned ${formatNumber(inventory.raw.pathVerification.enumeratedFileCount)}</dd>` : ""}` : `<dt>RAW files</dt><dd>Not audited</dd><dt>Sidecars</dt><dd>Not audited</dd>`;
+      function locationCard(name, state, inventory, detail) { return `<article class="card"><p class="eyebrow">${name}</p>${badge(state)}<dl>${inventoryDetails(inventory)}${detail}</dl></article>`; }
+      const activeState = value => ["active","activating"].includes(value);
+      const phaseDetails = {
+        "starting": {label:"Starting", files:"Awaiting inventory", transfer:"Not started"},
+        "waiting-for-lock": {label:"Waiting for lock", files:"Not started", transfer:"Not started"},
+        "mounting": {label:"Mounting SSD", files:"Not started", transfer:"Not started"},
+        "scanning": {label:"Scanning", files:"Scanning RAW files", transfer:"No transfer"},
+        "syncing-sidecars": {label:"Syncing sidecars", files:"Comparing sidecars", transfer:"Sidecar transfer"},
+        "planning": {label:"Planning transfer", files:"Counting files", transfer:"Calculating size"},
+        "checksumming": {label:"Checksum comparison", files:"Comparing RAW contents", transfer:"No transfer"},
+        "checksumming-candidates": {label:"Checksum candidates", files:"Checking changed RAWs", transfer:"No transfer"},
+        "reviewing-conflicts": {label:"Reviewing conflicts", files:"Comparing same paths", transfer:"No transfer"},
+        "quarantining-conflicts": {label:"Quarantining conflicts", files:"Moving conflict pairs", transfer:"No transfer"},
+        "copying": {label:"Copying files", files:"Preparing file count", transfer:"Preparing transfer"},
+        "copying-internxt-to-local": {label:"Copying from Internxt", files:"Preparing file count", transfer:"Preparing transfer"},
+        "copying-ssd-to-local": {label:"Copying from SSD", files:"Preparing file count", transfer:"Preparing transfer"},
+        "copying-local-to-ssd": {label:"Copying to SSD", files:"Preparing file count", transfer:"Preparing transfer"},
+        "copying-local-to-internxt": {label:"Copying to Internxt", files:"Preparing file count", transfer:"Preparing transfer"},
+        "organizing": {label:"Organizing", files:"Hashing and renaming", transfer:"No transfer"},
+        "checking-conflicts": {label:"Checking conflicts", files:"Comparing same paths", transfer:"No transfer"},
+        "promoting": {label:"Promoting files", files:"Preparing file count", transfer:"Preparing transfer"},
+        "comparing": {label:"Comparing", files:"Comparing Local and Internxt", transfer:"No transfer"},
+        "uploading": {label:"Uploading", files:"Preparing file count", transfer:"Preparing transfer"},
+        "verifying": {label:"Verifying", files:"Checking file contents", transfer:"No transfer"},
+        "checking-ssd": {label:"Checking SSD", files:"Checking mount", transfer:"No transfer"},
+        "checking-ssd-conflicts": {label:"Checking SSD conflicts", files:"Comparing same paths", transfer:"No transfer"},
+        "measuring-inventories": {label:"Measuring inventories", files:"Counting files", transfer:"No transfer"},
+        "verifying-local-to-internxt": {label:"Verifying Local → Internxt", files:"Checking file presence", transfer:"No transfer"},
+        "verifying-internxt-to-local": {label:"Verifying Internxt → Local", files:"Checking file presence", transfer:"No transfer"},
+        "finalizing": {label:"Finalizing", files:"Finishing checks", transfer:"No transfer"},
+        "completed": {label:"Completed", files:"Complete", transfer:"Complete"}
+      };
+      const humanizePhase = phase => String(phase || "running").replaceAll("-", " ").replace(/\b\w/g, character => character.toUpperCase());
+      const phaseLabel = phase => phaseDetails[phase]?.label || humanizePhase(phase);
+      const iconForJob = kind => ({"external-sync":"⇄","sd-import":"SD","internxt-backup":"↑","internxt-sidecars":"↥","internxt-check":"✓",reconciliation:"◎"}[kind] || "↻");
+      function metric(labelText, valueText) {
+        const item = document.createElement("div"); item.className = "metric";
+        const metricLabel = document.createElement("span"); metricLabel.className = "metric-label"; metricLabel.textContent = labelText;
+        const value = document.createElement("span"); value.className = "metric-value"; value.textContent = valueText;
+        item.append(metricLabel, value); return item;
+      }
+      function historyDuration(entry) {
+        if (Number.isFinite(entry.durationSeconds)) return entry.durationSeconds;
+        if (!entry.startedAt) return null;
+        return Math.max(0,(Date.now() - new Date(entry.startedAt).getTime()) / 1000);
+      }
+      function historyProgressText(progress) {
+        if (!progress || typeof progress !== "object") return "";
+        const values = [];
+        if (Number.isFinite(progress.filesTotal) && progress.filesTotal > 0) values.push(`Files ${formatNumber(progress.filesCompleted || 0)} / ${formatNumber(progress.filesTotal)}`);
+        else if (Number.isFinite(progress.filesCompleted) && progress.filesCompleted > 0) values.push(`${formatNumber(progress.filesCompleted)} files completed`);
+        if (Number.isFinite(progress.bytesTotal) && progress.bytesTotal > 0) values.push(`Bytes ${formatAdaptiveBytes(progress.bytesCompleted || 0)} / ${formatAdaptiveBytes(progress.bytesTotal)}`);
+        else if (Number.isFinite(progress.bytesCompleted) && progress.bytesCompleted > 0) values.push(`${formatAdaptiveBytes(progress.bytesCompleted)} processed`);
+        if (Number.isFinite(progress.percent)) values.push(`${Math.round(progress.percent)}%`);
+        return values.join(" · ");
+      }
+      function createHistoryTimeline(job) {
+        const history = Array.isArray(job.history) ? job.history : [];
+        if (!history.length) return null;
+        const section = document.createElement("section"); section.className = "job-history"; section.setAttribute("aria-label","Phase history");
+        const heading = document.createElement("h4"); heading.className = "job-history-heading"; heading.textContent = "Phase history"; section.append(heading);
+        const list = document.createElement("ol"); list.className = "history-list";
+        history.forEach(entry => {
+          const current = entry.status === "active" || !entry.finishedAt;
+          const item = document.createElement("li"); item.className = `history-item ${current ? "current" : "complete"}`;
+          const marker = document.createElement("span"); marker.className = "history-marker"; marker.textContent = current ? "•" : "✓"; item.append(marker);
+          const content = document.createElement("div"); content.className = "history-content";
+          const titleRow = document.createElement("div"); titleRow.className = "history-title-row";
+          const phase = document.createElement("span"); phase.className = "history-phase"; phase.textContent = phaseLabel(entry.phase);
+          const state = document.createElement("span"); state.className = "history-state";
+          const duration = historyDuration(entry);
+          const stateLabel = current ? "Current" : entry.result === "failed" ? "Failed" : entry.result === "needs-review" ? "Needs review" : "Completed";
+          state.textContent = `${stateLabel} · ${formatDuration(duration)}`;
+          titleRow.append(phase,state); content.append(titleRow);
+          if (entry.message) { const message = document.createElement("p"); message.className = "history-message"; message.textContent = entry.message; content.append(message); }
+          const meta = document.createElement("div"); meta.className = "history-meta"; meta.textContent = `${formatClock(entry.startedAt)}${entry.finishedAt ? ` → ${formatClock(entry.finishedAt)}` : " → now"}${entry.direction ? ` · ${entry.direction}` : ""}`; content.append(meta);
+          const progress = historyProgressText(entry.progress);
+          if (progress) { const progressText = document.createElement("div"); progressText.className = "history-progress"; progressText.textContent = progress; content.append(progressText); }
+          if (entry.currentFile) { const file = document.createElement("div"); file.className = "history-file"; file.textContent = `Last file: ${entry.currentFile}`; content.append(file); }
+          const updates = Array.isArray(entry.updates) ? entry.updates : [];
+          if (updates.length) {
+            const updateDetails = document.createElement("details"); updateDetails.className = "history-updates"; updateDetails.open = current;
+            const summary = document.createElement("summary"); summary.textContent = `${updates.length} message${updates.length === 1 ? "" : "s"} from this phase`; updateDetails.append(summary);
+            const updateList = document.createElement("ul");
+            updates.forEach(update => {
+              const item = document.createElement("li");
+              const text = update.message || (update.direction ? `Direction changed to ${update.direction}.` : "Progress updated.");
+              item.textContent = `${formatClock(update.at)} · ${text}`; updateList.append(item);
+            });
+            updateDetails.append(updateList); content.append(updateDetails);
+          }
+          item.append(content); list.append(item);
+        });
+        section.append(list); return section;
+      }
+      function fallbackJobs(pipeline, reconciliation) {
+        const jobs = [];
+        const add = (service, kind, title, direction) => {
+          if (!service || !activeState(service.activeState)) return;
+          const snapshot = service.job && typeof service.job === "object" ? service.job : {};
+          jobs.push({id:service.name,kind,title,direction: snapshot.direction || direction,state:"running",phase:snapshot.phase || "starting",message:snapshot.message || "The job is active; waiting for its first progress update.",startedAt:snapshot.startedAt || service.startedAt,step:snapshot.step,totalSteps:snapshot.totalSteps,progress:snapshot.progress || {},currentFile:snapshot.currentFile,recentFiles:snapshot.recentFiles});
+        };
+        add(pipeline?.external,"external-sync","Local ↔ External SSD","Local ↔ SSD");
+        add(pipeline?.internxt,"internxt-backup","Local → Internxt RAW","Local → Internxt");
+        add(pipeline?.internxtSidecars,"internxt-sidecars","Local → Internxt sidecars","Local → Internxt");
+        (pipeline?.imports || []).forEach(service => add(service,"sd-import","SD card → Local library","SD card → Local"));
+        if (["queued","running"].includes(reconciliation?.state)) {
+          const snapshot = pipeline?.reconciliationService?.job && typeof pipeline.reconciliationService.job === "object" ? pipeline.reconciliationService.job : {};
+          jobs.push({id:"reconciliation",kind:"reconciliation",title:"Reconcile Local, SSD & Internxt",direction:snapshot.direction || "Local ↔ SSD ↔ Internxt",state:"running",phase:snapshot.phase || reconciliation.phase || reconciliation.state,message:snapshot.message || reconciliation.message,startedAt:snapshot.startedAt || reconciliation.startedAt,step:snapshot.step || reconciliation.step,totalSteps:snapshot.totalSteps || reconciliation.totalSteps,progress:snapshot.progress || {},currentFile:snapshot.currentFile,recentFiles:snapshot.recentFiles,history:snapshot.history || []});
+        }
+        return jobs;
+      }
+      function createJobCard(job) {
+        const progress = job.progress || {};
+        const phaseName = job.phase || "running";
+        const details = phaseDetails[phaseName] || {};
+        const percent = Number.isFinite(progress.percent) ? Math.max(0,Math.min(100,progress.percent)) : null;
+        const filesDone = Number.isFinite(progress.filesCompleted) ? progress.filesCompleted : 0;
+        const filesTotal = Number.isFinite(progress.filesTotal) && progress.filesTotal > 0 ? progress.filesTotal : null;
+        const bytesDone = Number.isFinite(progress.bytesCompleted) ? progress.bytesCompleted : 0;
+        const bytesTotal = Number.isFinite(progress.bytesTotal) && progress.bytesTotal > 0 ? progress.bytesTotal : null;
+        const elapsed = job.startedAt ? Math.max(0,(Date.now() - new Date(job.startedAt).getTime()) / 1000) : null;
+        const card = document.createElement("article"); card.className = "job-card"; card.setAttribute("aria-label",`${job.title || "Photo job"}: ${phaseLabel(phaseName)}`);
+        const top = document.createElement("div"); top.className = "job-top";
+        const icon = document.createElement("span"); icon.className = "job-icon"; icon.textContent = iconForJob(job.kind);
+        const heading = document.createElement("div"); heading.className = "job-heading";
+        const titleRow = document.createElement("div"); titleRow.className = "job-title-row";
+        const title = document.createElement("h3"); title.className = "job-title"; title.textContent = job.title || "Photo workflow job";
+        const phase = document.createElement("span"); phase.className = "phase-pill"; phase.textContent = job.totalSteps ? `Step ${job.step || 0}/${job.totalSteps} · ${phaseLabel(phaseName)}` : phaseLabel(phaseName);
+        titleRow.append(title,phase); heading.append(titleRow);
+        if (job.direction) { const direction = document.createElement("span"); direction.className = "direction-pill"; direction.textContent = job.direction; heading.append(direction); }
+        top.append(icon,heading); card.append(top);
+        const message = document.createElement("p"); message.className = "job-message"; message.textContent = job.message || `Operation is in the ${phaseLabel(phaseName).toLowerCase()} phase.`; card.append(message);
+        const progressRow = document.createElement("div"); progressRow.className = "progress-row";
+        const track = document.createElement("div"); track.className = "progress-track"; track.setAttribute("role","progressbar");
+        const fill = document.createElement("div"); fill.className = `progress-fill${percent == null ? " indeterminate" : ""}`; if (percent != null) fill.style.width = `${percent}%`;
+        if (percent != null) { track.setAttribute("aria-valuenow",String(Math.round(percent))); track.setAttribute("aria-valuemin","0"); track.setAttribute("aria-valuemax","100"); }
+        track.append(fill);
+        const percentText = document.createElement("span"); percentText.className = "progress-percent"; percentText.textContent = percent == null ? "Live" : `${Math.round(percent)}%`;
+        progressRow.append(track,percentText); card.append(progressRow);
+        const metrics = document.createElement("div"); metrics.className = "job-metrics";
+        const fileValue = filesTotal ? `${formatNumber(filesDone)} / ${formatNumber(filesTotal)}` : filesDone ? `${formatNumber(filesDone)} done` : details.files || "Awaiting file count";
+        const byteValue = bytesTotal ? `${formatAdaptiveBytes(bytesDone)} / ${formatAdaptiveBytes(bytesTotal)}` : bytesDone ? formatAdaptiveBytes(bytesDone) : details.transfer || "No transfer yet";
+        metrics.append(metric("Files",fileValue),metric("Transfer",byteValue),metric("Speed",progress.speedBytesPerSecond > 0 ? `${formatAdaptiveBytes(progress.speedBytesPerSecond)}/s` : "—"),metric("ETA",progress.etaSeconds != null ? formatDuration(progress.etaSeconds) : "—"),metric("Elapsed",formatDuration(elapsed)));
+        card.append(metrics);
+        const activeFile = job.currentFile || job.recentFiles?.[0];
+        if (activeFile) {
+          const activity = document.createElement("div"); activity.className = "file-activity";
+          const fileLabel = document.createElement("span"); fileLabel.className = "file-label"; fileLabel.textContent = job.currentFile ? "Current file" : "Latest file";
+          const filePath = document.createElement("span"); filePath.className = "file-path"; filePath.textContent = activeFile;
+          activity.append(fileLabel,filePath);
+          const recent = (job.recentFiles || []).filter(path => path !== activeFile).slice(0,4);
+          if (recent.length) { const recentList = document.createElement("div"); recentList.className = "recent-files"; recent.forEach(path => { const item = document.createElement("span"); item.className = "recent-file"; item.textContent = path; recentList.append(item); }); activity.append(recentList); }
+          card.append(activity);
+        }
+        const timeline = createHistoryTimeline(job);
+        if (timeline) card.append(timeline);
+        return card;
+      }
+      function renderActiveJobs(jobs, pipeline, reconciliation) {
+        const visibleJobs = jobs?.length ? jobs : fallbackJobs(pipeline,reconciliation);
+        const container = document.querySelector("#active-jobs"); container.replaceChildren();
+        const live = document.querySelector("#jobs-live");
+        if (!visibleJobs.length) {
+          live.className = "live-pill idle"; live.textContent = "All clear";
+          const empty = document.createElement("div"); empty.className = "job-empty";
+          const emptyIcon = document.createElement("span"); emptyIcon.className = "job-empty-icon"; emptyIcon.textContent = "✓";
+          const text = document.createElement("span"); text.textContent = "No photo jobs are active right now.";
+          empty.append(emptyIcon,text); container.append(empty); return;
+        }
+        live.className = "live-pill"; live.textContent = `${visibleJobs.length} live`;
+        visibleJobs.forEach(job => container.append(createJobCard(job)));
+      }
+      function renderRawSyncNote(data) {
+        const localCount = data.locations.local?.raw?.fileCount;
+        const ssdCount = data.locations.ssd.inventory?.raw?.fileCount;
+        let note = "RAW photos are union-synced between Local and the SSD: files found on either location are copied to the other, and existing files are never overwritten.";
+        if (Number.isFinite(localCount) && Number.isFinite(ssdCount) && localCount !== ssdCount) {
+          const location = ssdCount > localCount ? "SSD" : "Local";
+          const difference = Math.abs(ssdCount - localCount);
+          note = `${location} currently has ${formatNumber(difference)} more RAW ${difference === 1 ? "file" : "files"}. The next union sync copies those files to the other location.`;
+        }
+        document.querySelector("#raw-sync-note").textContent = note;
+      }
+      function renderReconciliation(reconciliation) {
+        const state = reconciliation?.state || "idle";
+        const button = document.querySelector("#reconcile-button");
+        button.disabled = ["queued", "running"].includes(state);
+        button.textContent = button.disabled ? "Reconciliation in progress…" : "Reconcile missing files";
+        const details = reconciliation?.inventories ? ` Final counts: local ${formatNumber(reconciliation.inventories.local?.fileCount)}, SSD ${formatNumber(reconciliation.inventories.ssd?.fileCount)}, Internxt ${formatNumber(reconciliation.inventories.internxt?.fileCount)}.` : "";
+        const progress = reconciliation?.totalSteps ? ` Step ${reconciliation.step || 0} of ${reconciliation.totalSteps}: ${(reconciliation.phase || "preparing").replaceAll("-", " ")}.` : "";
+        const updated = reconciliation?.updatedAt ? ` Updated ${formatTime(reconciliation.updatedAt)}.` : "";
+        const finished = reconciliation?.finishedAt ? ` Finished ${formatTime(reconciliation.finishedAt)}.` : "";
+        document.querySelector("#reconcile-status").innerHTML = `${badge(state)} ${reconciliation?.message || "No reconciliation has been requested."}${progress}${updated}${finished}${details}`;
+      }
+      function render(data) {
+        const { pipeline, locations } = data;
+        const active = pipeline.active;
+        document.querySelector("#headline").textContent = active ? "Backup activity in progress" : "No backup activity running";
+        document.querySelector("#updated").textContent = `Snapshot updated ${formatTime(data.generatedAt)}`;
+        document.querySelector("#locations").innerHTML = [
+          locationCard("Local library", locations.local.sync, locations.local, `<dt>Path</dt><dd>${locations.local.path}</dd>`),
+          locationCard("External SSD", locations.ssd.sync, locations.ssd.inventory, `<dt>Mount state</dt><dd>${locations.ssd.mounted ? `Mounted at ${locations.ssd.mountPoint}` : "Not mounted"}</dd>`),
+          locationCard("Internxt", locations.internxt.sync, locations.internxt, `<dt>Audited</dt><dd>${formatTime(locations.internxt.checkedAt)}</dd>`)
+        ].join("");
+        const flows = [
+          ["SD → Local RAW", pipeline.flows.sdToLocalRaw],
+          ["Local ↔ SSD RAW (union sync)", pipeline.flows.localToSsdRaw],
+          ["SSD → Local sidecars", pipeline.flows.ssdToLocalSidecars],
+          ["Local → Internxt RAW", pipeline.flows.localToInternxtRaw],
+          ["Local → Internxt sidecars", pipeline.flows.localToInternxtSidecars]
+        ];
+        const rows = flows.map(([name, flow]) => `<tr><td>${name}</td><td>${badge(flow.sync)}</td><td>${formatTime(flow.lastRunAt)}</td><td>${flow.result}</td></tr>`);
+        document.querySelector("#runs").innerHTML = rows.join("");
+        renderRawSyncNote(data);
+        renderReconciliation(data.reconciliation);
+        const cameras = data.cameras?.cameras || [];
+        const cameraImport = data.cameras?.importCompletedAt ? `Source: SD import completed ${formatTime(data.cameras.importCompletedAt)}.` : "";
+        const cameraError = data.cameras?.error || "";
+        document.querySelector("#camera-note").textContent = [cameraImport, cameraError].filter(Boolean).join(" ");
+        document.querySelector("#cameras").innerHTML = cameras.length ? cameras.map(camera => `<tr><td>${camera.camera}</td><td>${formatCaptureDate(camera.latestCaptureAt)}</td></tr>`).join("") : `<tr><td class="empty" colspan="2">No RAW camera metadata has been indexed yet.</td></tr>`;
+      }
+      let latestStatus = null;
+      let latestReconciliation = null;
+      let latestJobs = [];
+      async function refreshSummary() {
+        try {
+          const [statusResponse, reconciliationResponse] = await Promise.all([
+            fetch("/api/status", {cache:"no-store"}),
+            fetch("/api/reconcile", {cache:"no-store"})
+          ]);
+          if (!statusResponse.ok) throw new Error(await statusResponse.text());
+          if (!reconciliationResponse.ok) throw new Error(await reconciliationResponse.text());
+          const [status, reconciliation] = await Promise.all([statusResponse.json(), reconciliationResponse.json()]);
+          latestStatus = status;
+          latestReconciliation = reconciliation;
+          render({...status, reconciliation});
+          renderActiveJobs(latestJobs,status.pipeline,reconciliation);
+        }
+        catch (error) { document.querySelector("#headline").textContent = "Status unavailable"; document.querySelector("#headline").parentElement.classList.add("error"); document.querySelector("#updated").textContent = "The host snapshot is not available yet."; }
+      }
+      async function refreshJobs() {
+        try {
+          const response = await fetch("/api/jobs",{cache:"no-store"});
+          if (!response.ok) throw new Error(await response.text());
+          const payload = await response.json();
+          latestJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+          renderActiveJobs(latestJobs,latestStatus?.pipeline,latestReconciliation);
+        } catch (error) {
+          renderActiveJobs([],latestStatus?.pipeline,latestReconciliation);
+        }
+      }
+      document.querySelector("#reconcile-button").addEventListener("click", async () => {
+        if (!window.confirm("Copy every missing RAW file and sidecar between Local, SSD, and Internxt? Existing files will not be overwritten or deleted.")) return;
+        const button = document.querySelector("#reconcile-button");
+        button.disabled = true;
+        button.textContent = "Queuing reconciliation…";
+        try {
+          const response = await fetch("/api/reconcile", { method:"POST", cache:"no-store" });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || "Could not queue reconciliation");
+          latestReconciliation = result;
+          renderReconciliation(result);
+          renderActiveJobs(latestJobs,latestStatus?.pipeline,latestReconciliation);
+        } catch (error) {
+          document.querySelector("#reconcile-status").textContent = `Could not queue reconciliation: ${error.message}`;
+          button.disabled = false;
+          button.textContent = "Reconcile missing files";
+        }
+      });
+      refreshSummary(); refreshJobs();
+      setInterval(refreshSummary,30000);
+      setInterval(refreshJobs,2000);
+    </script>
+  </body>
+</html>
