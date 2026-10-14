@@ -1,0 +1,79 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #16191d;
+  --muted: #5d6671;
+  --border: #dde1e6;
+  --up: #1a7f45;
+  --idle: #6b7480;
+  --warn: #a35f00;
+  --down: #c0262d;
+  --unknown: #5d6671;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1215;
+    --card: #181c20;
+    --text: #e8ebee;
+    --muted: #9aa3ad;
+    --border: #2a3036;
+    --up: #4cc27e;
+    --idle: #8a939e;
+    --warn: #e0a03a;
+    --down: #ff6b6f;
+    --unknown: #9aa3ad;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 1.5rem; margin: 0; }
+h2 { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 32px 0 12px; }
+.muted { color: var(--muted); margin: 0; font-size: 0.9rem; }
+
+.banner {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 16px; padding: 16px 20px;
+  border-radius: 10px; border: 1px solid var(--border);
+  border-left: 6px solid var(--tone, var(--unknown));
+  background: var(--card); font-size: 1.15rem; font-weight: 600;
+}
+.banner .icon { color: var(--tone, var(--unknown)); font-size: 1.4rem; }
+
+.up { --tone: var(--up); }
+.idle { --tone: var(--idle); }
+.degraded, .stale { --tone: var(--warn); }
+.down, .outage { --tone: var(--down); }
+.unknown { --tone: var(--unknown); }
+.operational { --tone: var(--up); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-top: 4px solid var(--tone, var(--unknown));
+  border-radius: 10px; padding: 14px 16px;
+}
+.card h3 { margin: 0; font-size: 1.05rem; word-break: break-word; }
+.card .state { margin: 4px 0 2px; font-weight: 600; color: var(--tone, var(--unknown)); }
+.card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.chips li {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.chips li::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--tone, var(--unknown));
+}
+.chips li.idle { color: var(--muted); }
+.empty { color: var(--muted); font-size: 0.9rem; }

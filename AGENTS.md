@@ -2,8 +2,8 @@
 
 Organize application implementations under services/<application>. Keep application
 contracts, tests, documentation, and packaging with their owning application.
-Release each application independently. Raw Backup and Substack Digest publish separate images. Photo workflows and
-status collection remain Nix packages.
+Release each application independently. Raw Backup, Substack Digest, and the status page publish separate images. Photo workflows and
+the status and Raw Backup collectors are Nix packages.
 
 Keep runtime behavior unchanged during extraction. Host devices, mounts, systemd
 units, scheduling, firewall rules, and secret references belong in electricpeak.

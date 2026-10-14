@@ -17,7 +17,15 @@ docker build -t rawbackup:test services/rawbackup
 scripts/smoke-rawbackup.sh rawbackup:test
 ```
 
-`lib.mkRawbackupPackages { pkgs = ...; }` builds the collector with the consumer's
+The status page lives in [services/status](services/status/README.md):
+
+```sh
+cargo clippy --manifest-path services/status/rust/Cargo.toml --workspace --all-targets --locked -- --deny warnings
+docker build -t status:test services/status
+scripts/smoke-status.sh status:test
+```
+
+`lib.mkRawbackupPackages` and `lib.mkStatusPackages` (both `{ pkgs = ...; }`) build the Rust collectors with the consumer's
 pinned nixpkgs. `lib.mkPhotoWorkflowPackages` accepts `pkgs`, `renamePicture`,
 `localRoot`, `internxtRemotePath`, `internxtConfig`, `internxtEmailSecret`, and
 `internxtPasswordSecret`. Secret arguments are file paths, never resolved values.

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Electricpeak Status</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Electricpeak</h1>
+      <p id="updated" class="muted">Loading…</p>
+    </header>
+
+    <section id="banner" class="banner unknown" role="status" aria-live="polite">
+      <span id="banner-icon" class="icon" aria-hidden="true">…</span>
+      <span id="banner-text">Checking…</span>
+    </section>
+
+    <section aria-labelledby="connectivity">
+      <h2 id="connectivity">Connectivity</h2>
+      <div id="checks" class="cards"></div>
+    </section>
+
+    <section id="attention-section" aria-labelledby="attention" hidden>
+      <h2 id="attention">Needs attention</h2>
+      <div id="attention-list" class="cards"></div>
+    </section>
+
+    <section aria-labelledby="services">
+      <h2 id="services">Services</h2>
+      <ul id="healthy-list" class="chips"></ul>
+    </section>
+  </main>
+</body>
+</html>
