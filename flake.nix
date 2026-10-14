@@ -14,6 +14,7 @@
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
       rawbackup = self.lib.mkRawbackupPackages { inherit pkgs; };
+      status = self.lib.mkStatusPackages { inherit pkgs; };
       workflows = self.lib.mkPhotoWorkflowPackages {
         inherit pkgs;
         renamePicture = pkgs.callPackage "${gallatin}/rename-picture.nix" { };
@@ -26,9 +27,10 @@
     in {
       lib = {
         mkRawbackupPackages = import ./services/rawbackup/rust/packages.nix;
+        mkStatusPackages = import ./services/status/rust/packages.nix;
         mkPhotoWorkflowPackages = import ./services/rawbackup/photo-workflow/packages.nix;
       };
-      packages.${system} = rawbackup // {
+      packages.${system} = rawbackup // status // {
         photo-workflow = pkgs.symlinkJoin {
           name = "photo-workflow";
           paths = builtins.attrValues workflows;
