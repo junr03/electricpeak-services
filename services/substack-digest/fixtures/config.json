@@ -1,0 +1,13 @@
+{
+  "folder": "/Substack Daily",
+  "timezone": "America/Los_Angeles",
+  "first_run_hours": 24,
+  "overlap_hours": 48,
+  "page_width_mm": 91.8,
+  "page_height_mm": 163.2,
+  "font_size_pt": 12,
+  "line_height": 1.5,
+  "margin_mm": 7,
+  "annotation_margin_mm": 13,
+  "local_retention_days": 30
+}
