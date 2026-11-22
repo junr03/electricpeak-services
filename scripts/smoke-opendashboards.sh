@@ -3,6 +3,8 @@ set -euo pipefail
 image=${1:?usage: smoke-opendashboards.sh IMAGE}
 postgres_image=postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
 fixture=$(mktemp -d)
+smoke_uid=$(id -u)
+smoke_gid=$(id -g)
 network="opendashboards-smoke-$$"
 database="opendashboards-db-$$"
 app="opendashboards-app-$$"
@@ -14,13 +16,13 @@ cleanup() {
 trap cleanup EXIT
 chmod 755 "$fixture"
 mkdir "$fixture/state"
-chmod 777 "$fixture/state"
+chmod 700 "$fixture/state"
 printf '%s\n' smoke-only-not-a-real-api-key > "$fixture/api-key"
 chmod 644 "$fixture/api-key"
-docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+docker run --rm --user "$smoke_uid:$smoke_gid" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
   -v "$fixture/state:/data" "$image" init
 before=$(sha256sum "$fixture/state/"*)
-docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+docker run --rm --user "$smoke_uid:$smoke_gid" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
   -v "$fixture/state:/data" "$image" init
 [[ "$before" == "$(sha256sum "$fixture/state/"*)" ]]
 [[ $(stat -c %a "$fixture/state/encryption-key") == 600 ]]
@@ -33,9 +35,9 @@ for _ in $(seq 1 40); do
   if docker exec "$database" pg_isready -U opendashboards >/dev/null 2>&1; then break; fi
   sleep 1
 done
-docker run -d --init --name "$app" --network "$network" \
+docker run -d --init --user "$smoke_uid:$smoke_gid" --name "$app" --network "$network" \
   --read-only --cap-drop ALL --security-opt no-new-privileges:true \
-  --tmpfs /tmp --tmpfs /app/.next/cache:uid=1000,gid=100 \
+  --tmpfs /tmp --tmpfs "/app/.next/cache:uid=$smoke_uid,gid=$smoke_gid" \
   -p 127.0.0.1::3000 -e APP_ORIGIN=https://dashboards.example.invalid \
   -v "$fixture/state:/data:ro" -v "$fixture/api-key:/run/secrets/thesys-api-key:ro" "$image" >/dev/null
 port=$(docker port "$app" 3000/tcp | head -1 | cut -d: -f2)
@@ -85,7 +87,7 @@ python3 "$fixture/probe.py" "$port" "$fixture/state/admin-password"
 [[ $(docker exec "$database" psql -U opendashboards -d opendashboards -Atc \
   'SELECT value FROM smoke_retention') == preserved ]]
 [[ "$before" == "$(sha256sum "$fixture/state/"*)" ]]
-if docker run --rm --network none --read-only --cap-drop ALL \
+if docker run --rm --user "$smoke_uid:$smoke_gid" --network none --read-only --cap-drop ALL \
   -e APP_ORIGIN=https://dashboards.example.invalid -v "$fixture/state:/data:ro" \
   "$image" > "$fixture/missing-key.log" 2>&1; then
   echo "Container unexpectedly started without its API key" >&2
