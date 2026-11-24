@@ -57,3 +57,8 @@ deploy anything. Retain deployed digests for rollback; data rollback is separate
 The current file-based host/web interface is documented in
 [the runtime contract](services/rawbackup/docs/runtime.md). Changes to shared
 files or API behavior require compatible producer and consumer updates.
+
+The [Transaction Import CLI](services/transaction-import/README.md) ingests
+financial CSV exports into PostgreSQL. Build it with
+`nix build .#transaction-import` or use its Docker Compose setup. Its image is
+released independently by the Transaction Import workflow.

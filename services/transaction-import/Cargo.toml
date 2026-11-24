@@ -1,0 +1,20 @@
+[package]
+name = "transaction-import"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Import financial transaction CSV exports into PostgreSQL"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+csv = "1"
+postgres = { version = "0.19", features = ["with-chrono-0_4"] }
+rust_decimal = { version = "1", default-features = false, features = ["std", "db-postgres"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+
+[profile.release]
+strip = true
+lto = "thin"

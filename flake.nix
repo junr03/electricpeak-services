@@ -31,6 +31,7 @@
         mkPhotoWorkflowPackages = import ./services/rawbackup/photo-workflow/packages.nix;
       };
       packages.${system} = rawbackup // status // {
+        transaction-import = pkgs.callPackage ./services/transaction-import/package.nix { };
         photo-workflow = pkgs.symlinkJoin {
           name = "photo-workflow";
           paths = builtins.attrValues workflows;
