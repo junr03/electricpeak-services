@@ -1,8 +1,8 @@
 FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS build
 WORKDIR /app
-# MIT-licensed upstream, pinned by commit and archive checksum. Upstream does
-# not publish a production image or a standalone authentication gateway.
-ADD --checksum=sha256:900a14d69b9c3f22e9ea3813dffa8e2e4bbd61f92e4544f20d45d3fddf72ded5 https://codeload.github.com/thesysdev/opendashboards/tar.gz/4c49e8d207fbb7407e0a0d1897dc101f09add3f0 /tmp/upstream.tar.gz
+# MIT-licensed OpenDashboards fork, pinned by commit and archive checksum.
+# The fork adds operator-authorized private data sources; production adapters stay here.
+ADD --checksum=sha256:225cac929b2c77cf5c048e5d08924966a7db92dcce9448a8ccadee89e6156ac3 https://codeload.github.com/junr03/opendashboards/tar.gz/7aa12c4d47a7816f99f15b2ddc8b0a9ca481fe2c /tmp/upstream.tar.gz
 RUN tar -xzf /tmp/upstream.tar.gz --strip-components=1 && rm /tmp/upstream.tar.gz
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 RUN pnpm install --frozen-lockfile

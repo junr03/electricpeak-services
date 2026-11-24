@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { basicProvider } from "../lib/auth/providers/basic";
 import { createAesSecretBox } from "../lib/secrets/aes-gcm";
+import { MAX_SECRET_BYTES, SecretTooLargeError } from "../lib/secrets/types";
 
 const password = "a".repeat(64);
 describe("single-user login", () => {
@@ -39,7 +40,12 @@ describe("encrypted connection credentials", () => {
     bytes[bytes.length - 1] ^= 1;
     await expect(box.open({ ...sealed, ciphertext: bytes.toString("base64") }, context)).rejects.toThrow();
     await expect(box.open({ v: 1, provider: "plaintext", value: "plain" }, context)).rejects.toThrow();
-    await expect(box.seal("a".repeat(4097), context)).rejects.toThrow();
+    await expect(box.seal("a".repeat(MAX_SECRET_BYTES + 1), context)).rejects.toBeInstanceOf(SecretTooLargeError);
     expect(() => createAesSecretBox("short")).toThrow();
+  });
+
+  it("round trips OAuth-sized credentials at the application's supported limit", async () => {
+    const credential = "a".repeat(MAX_SECRET_BYTES);
+    expect(await box.open(await box.seal(credential, context), context)).toBe(credential);
   });
 });
