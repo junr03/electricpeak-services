@@ -1,0 +1,2 @@
+"date","name","amount","status","category","parent category","excluded","tags","type","account","account mask","note","recurring"
+"2026-01-15","Example Store",12.34,"pending","Returns",,true,,"regular","Example Card","0007",,""
