@@ -1,7 +1,7 @@
 # OpenDashboards container
 
-Packages MIT-licensed [thesysdev/opendashboards](https://github.com/thesysdev/opendashboards)
-at `4c49e8d207fbb7407e0a0d1897dc101f09add3f0`, with its frozen pnpm lockfile.
+Packages the MIT-licensed [junr03/opendashboards fork](https://github.com/junr03/opendashboards)
+at `7aa12c4d47a7816f99f15b2ddc8b0a9ca481fe2c`, with its frozen pnpm lockfile.
 The Dockerfile verifies the upstream archive checksum. Node and PostgreSQL are
 digest-pinned. Upstream has no application container and its production providers
 expect Supabase gateway tokens and Vercel OIDC/AWS KMS, so this package adds two
@@ -9,6 +9,13 @@ small adapters: a single-user HTTP Basic login and Node's AES-256-GCM for
 connection credentials, bound to the user, connection and purpose. Development
 auth and plaintext storage remain forbidden in production. Optional upstream
 demo datasets are disabled.
+
+The fork adds operator-authorized private data sources across the existing guarded
+transports. Both environment rule lists remain empty in this image; building the
+fork does not itself authorize a private database. Configure exact destinations
+through the application's typed network settings in a separate reviewed change.
+See the fork's operator guide in `docs/private-data-sources.md`. Application metadata
+PostgreSQL remains separate from analytics data sources.
 
 OpenUI Cloud remains hosted: dashboard generation, dashboard/chat storage and
 model calls use Thesys. The API key stays server-side. This is a single-user
