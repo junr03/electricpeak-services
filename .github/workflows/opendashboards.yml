@@ -1,10 +1,10 @@
 name: OpenDashboards
 on:
   pull_request:
-    paths: ['services/opendashboards/**', 'scripts/smoke-opendashboards.sh', '.github/workflows/opendashboards.yml']
+    paths: ['services/opendashboards/**', 'scripts/smoke-opendashboards*.sh', '.github/workflows/opendashboards.yml']
   push:
     branches: [main, 'jnr/**']
-    paths: ['services/opendashboards/**', 'scripts/smoke-opendashboards.sh', '.github/workflows/opendashboards.yml']
+    paths: ['services/opendashboards/**', 'scripts/smoke-opendashboards*.sh', '.github/workflows/opendashboards.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -28,6 +28,10 @@ jobs:
           tags: opendashboards:test
       - name: Smoke-test with an isolated PostgreSQL database
         run: bash scripts/smoke-opendashboards.sh opendashboards:test
+      - name: Test operator-authorized TLS data sources
+        run: |
+          docker build --target build -t opendashboards:source-tests services/opendashboards
+          bash scripts/smoke-opendashboards-private-source.sh opendashboards:source-tests
       - name: Log into GHCR for trusted branch publication
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3

@@ -9,8 +9,12 @@ function replace(path, before, after) {
 cpSync("/overlay", ".", { recursive: true });
 replace("config/prod.ts", 'publicHost: "opendashboards.com"', 'publicHost: new URL(process.env.APP_ORIGIN || "https://example.invalid").host');
 replace("config/prod.ts", 'appOrigin: "https://opendashboards.com"', 'appOrigin: process.env.APP_ORIGIN || "https://example.invalid"');
+replace("config/index.ts", 'import { common }', 'import { operatorPrivateDestinations } from "./operator-network";\nimport { common }');
 replace("config/index.ts", 'return { ...common, ...ENVIRONMENT_SETTINGS[name] };', `return {
     ...common, ...ENVIRONMENT_SETTINGS[name],
+    ...(process.env.OPENDASHBOARDS_SELF_HOSTED === "true" && operatorPrivateDestinations !== null
+      ? { network: { ...ENVIRONMENT_SETTINGS[name].network, privateDestinations: operatorPrivateDestinations } }
+      : {}),
     ...(process.env.OPENDASHBOARDS_SELF_HOSTED === "true" ? { demoData: { neonProject: "", datasets: [] } } : {}),
   };`);
 replace("config/index.ts", '!env.SUPABASE_URL)', '!env.SUPABASE_URL && !env.OPENDASHBOARDS_AUTH_PASSWORD)');

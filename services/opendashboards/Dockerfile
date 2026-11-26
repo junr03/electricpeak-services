@@ -11,12 +11,15 @@ COPY self-hosted ./self-hosted
 COPY apply-overlay.mjs /tmp/apply-overlay.mjs
 RUN node /tmp/apply-overlay.mjs && pnpm exec vitest run --config self-hosted/vitest.config.mts
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build && pnpm prune --prod
+RUN pnpm build
+
+FROM build AS production-dependencies
+RUN pnpm prune --prod
 
 FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
-COPY --from=build --chown=1000:100 /app /app
+COPY --from=production-dependencies --chown=1000:100 /app /app
 USER 1000:100
 EXPOSE 3000
 ENTRYPOINT ["node", "self-hosted/entrypoint.mjs"]

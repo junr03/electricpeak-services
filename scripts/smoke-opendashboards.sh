@@ -87,6 +87,17 @@ python3 "$fixture/probe.py" "$port" "$fixture/state/admin-password"
 [[ $(docker exec "$database" psql -U opendashboards -d opendashboards -Atc \
   'SELECT value FROM smoke_retention') == preserved ]]
 [[ "$before" == "$(sha256sum "$fixture/state/"*)" ]]
+printf '[{"host":"*.invalid","port":5432}]\n' > "$fixture/invalid-destinations.json"
+if timeout 45 docker run --rm --user "$smoke_uid:$smoke_gid" --network "$network" --read-only --cap-drop ALL \
+  -e APP_ORIGIN=https://dashboards.example.invalid \
+  -e OPENDASHBOARDS_PRIVATE_DESTINATIONS_FILE=/run/config/private-destinations.json \
+  -v "$fixture/state:/data:ro" -v "$fixture/api-key:/run/secrets/thesys-api-key:ro" \
+  -v "$fixture/invalid-destinations.json:/run/config/private-destinations.json:ro" \
+  "$image" > "$fixture/invalid-destinations.log" 2>&1; then
+  echo 'Container unexpectedly started with an invalid private destination rule' >&2
+  exit 1
+fi
+grep -Fq 'Invalid operator private destinations' "$fixture/invalid-destinations.log"
 if docker run --rm --user "$smoke_uid:$smoke_gid" --network none --read-only --cap-drop ALL \
   -e APP_ORIGIN=https://dashboards.example.invalid -v "$fixture/state:/data:ro" \
   "$image" > "$fixture/missing-key.log" 2>&1; then

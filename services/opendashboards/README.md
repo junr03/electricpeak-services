@@ -12,8 +12,11 @@ demo datasets are disabled.
 
 The fork adds operator-authorized private data sources across the existing guarded
 transports. Both environment rule lists remain empty in this image; building the
-fork does not itself authorize a private database. Configure exact destinations
-through the application's typed network settings in a separate reviewed change.
+fork does not itself authorize a private database. Self-hosted operators can mount
+a JSON rule list and set `OPENDASHBOARDS_PRIVATE_DESTINATIONS_FILE` to its path.
+It uses the same validation as typed network settings and is read once per process;
+missing files, malformed JSON and invalid rules stop startup. Changes require a
+restart. Keep exact destinations and narrow DNS bounds in deployment configuration.
 See the fork's operator guide in `docs/private-data-sources.md`. Application metadata
 PostgreSQL remains separate from analytics data sources.
 
@@ -37,6 +40,11 @@ installation; do not share the admin account between people needing isolated dat
   `database-password`. Keep database storage persistent and its port unpublished.
 - Init needs no network. The app needs network access to Postgres and Thesys,
   and to any data sources the user configures.
+- `OPENDASHBOARDS_PRIVATE_DESTINATIONS_FILE`: optional read-only JSON file holding
+  an array such as `[{"host":"analytics-db","port":5432,"addresses":["172.30.0.5/32"]}]`.
+  An absent setting preserves the shipped network policy; an empty array grants
+  no private access. The application's metadata database and metadata endpoints
+  remain blocked. Private PostgreSQL sources still require TLS.
 - Login username: `admin`. Retrieve its password locally from
   `/var/lib/opendashboards/state/admin-password`; it is never printed by the image.
 
@@ -63,3 +71,12 @@ The build runs adapter tests and Next.js's production build/type check. The smok
 test uses an isolated real Postgres container and a synthetic Thesys key; it
 checks login, app rendering, encryption mode, migrations and credential retention.
 It never calls Thesys with a real key or creates a billable dashboard.
+
+`scripts/smoke-opendashboards-private-source.sh` runs the build stage's real
+PostgreSQL connector against a disposable TLS database. It proves refusal without
+an operator rule, certificate-verified table discovery and queries with one,
+continued metadata-host/address restrictions, and database-level write denial.
+Build `--target build` and pass that image to the script; CI does this before
+publishing. `READER_ROLE_SQL` can select a deployment's grant script for fixture
+validation, and `IMPORTER_COMPATIBILITY_IMAGE` optionally tests a CSV importer
+against a separate database on that same TLS server.
