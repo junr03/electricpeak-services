@@ -28,6 +28,12 @@ installation; do not share the admin account between people needing isolated dat
 
 - Port: 3000, HTTP behind an HTTPS reverse proxy. No host publication is needed.
 - `APP_ORIGIN`: exact external HTTPS origin, without a trailing slash or path.
+- `OPENDASHBOARDS_MODEL`: optional Gateway model ID used for both the chat agent
+  and dashboard generation. Set it on the application container and restart to
+  change models without rebuilding. Unset or blank values keep the fork's default.
+  The existing Thesys API key is still required; configure provider keys through
+  Thesys BYOK when needed. Model availability, quotas and data policies depend on
+  the selected route; free models may use request data for training.
 - `/run/secrets/thesys-api-key`: read-only file containing the Thesys API key;
   override its path with `THESYS_API_KEY_FILE`.
 - `/data`: persistent credential state, read-only for the application. Run the
