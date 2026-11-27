@@ -1,8 +1,8 @@
 FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS build
 WORKDIR /app
 # MIT-licensed OpenDashboards fork, pinned by commit and archive checksum.
-# The fork adds operator-authorized private data sources; production adapters stay here.
-ADD --checksum=sha256:225cac929b2c77cf5c048e5d08924966a7db92dcce9448a8ccadee89e6156ac3 https://codeload.github.com/junr03/opendashboards/tar.gz/7aa12c4d47a7816f99f15b2ddc8b0a9ca481fe2c /tmp/upstream.tar.gz
+# The fork owns inference, generation, script execution, history and authentication.
+ADD --checksum=sha256:f06b4756a81833e49a7d68017d41dd1ee3649f41ea49e446ebb3c092700e36ee https://codeload.github.com/junr03/opendashboards/tar.gz/9c9279cdbe4e1da9138632571919b4a9bdf586b1 /tmp/upstream.tar.gz
 RUN tar -xzf /tmp/upstream.tar.gz --strip-components=1 && rm /tmp/upstream.tar.gz
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 RUN pnpm install --frozen-lockfile

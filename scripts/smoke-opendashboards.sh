@@ -17,8 +17,6 @@ trap cleanup EXIT
 chmod 755 "$fixture"
 mkdir "$fixture/state"
 chmod 700 "$fixture/state"
-printf '%s\n' smoke-only-not-a-real-api-key > "$fixture/api-key"
-chmod 644 "$fixture/api-key"
 docker run --rm --user "$smoke_uid:$smoke_gid" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
   -v "$fixture/state:/data" "$image" init
 before=$(sha256sum "$fixture/state/"*)
@@ -39,45 +37,60 @@ docker run -d --init --user "$smoke_uid:$smoke_gid" --name "$app" --network "$ne
   --read-only --cap-drop ALL --security-opt no-new-privileges:true \
   --tmpfs /tmp --tmpfs "/app/.next/cache:uid=$smoke_uid,gid=$smoke_gid" \
   -p 127.0.0.1::3000 -e APP_ORIGIN=https://dashboards.example.invalid \
-  -v "$fixture/state:/data:ro" -v "$fixture/api-key:/run/secrets/thesys-api-key:ro" "$image" >/dev/null
+  -e LLM_BASE_URL=http://unused-inference:11434/v1 -e LLM_MODEL=fixture-model \
+  -v "$fixture/state:/data:ro" "$image" >/dev/null
 port=$(docker port "$app" 3000/tcp | head -1 | cut -d: -f2)
 cat > "$fixture/probe.py" <<'PY'
-import base64
 import pathlib
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
+
+opener = urllib.request.build_opener(NoRedirect)
 base = f"http://127.0.0.1:{sys.argv[1]}"
 password = pathlib.Path(sys.argv[2]).read_text().strip()
-authorization = "Basic " + base64.b64encode(f"admin:{password}".encode()).decode()
+headers = {"Host": "dashboards.example.invalid", "Origin": "https://dashboards.example.invalid"}
+def request(path, data=None, extra=None):
+    try:
+        return opener.open(urllib.request.Request(base + path, data=data, headers={**headers, **(extra or {})}), timeout=10)
+    except urllib.error.HTTPError as error:
+        return error
+
 for attempt in range(60):
     try:
-        with urllib.request.urlopen(urllib.request.Request(base + "/apps", headers={"Authorization": authorization}), timeout=5) as response:
-            assert response.status == 200
-            assert b"<html" in response.read().lower()
-        break
-    except (OSError, urllib.error.URLError):
-        time.sleep(1)
+        if request("/login").status == 200:
+            break
+    except OSError:
+        pass
+    time.sleep(1)
 else:
     raise SystemExit("OpenDashboards did not become ready")
-for path in ("/apps", "/connections", "/api/frontend-token"):
-    for headers in ({}, {"Authorization": "Basic YWRtaW46d3Jvbmc="}):
-        try:
-            urllib.request.urlopen(urllib.request.Request(base + path, headers=headers), timeout=5)
-        except urllib.error.HTTPError as error:
-            assert error.code == 401, (path, error.code)
-            assert error.headers["WWW-Authenticate"].startswith("Basic ")
-        else:
-            raise AssertionError(f"unauthenticated request accepted: {path}")
-with urllib.request.urlopen(urllib.request.Request(base + "/connections", headers={"Authorization": authorization}), timeout=10) as response:
-    assert b"encrypted on this server" in response.read()
-print("OpenDashboards: login, app, connections and encrypted storage passed")
+
+for cookie in ("", "opendashboards_session=forged"):
+    assert request("/api/artifacts/missing", extra={"Cookie": cookie}).status == 401
+assert request("/auth/login", b"password=incorrect").status == 401
+login = request("/auth/login", urllib.parse.urlencode({"password": password}).encode(),
+                {"Content-Type": "application/x-www-form-urlencoded"})
+assert login.status == 303, login.read()
+set_cookie = login.headers["Set-Cookie"]
+assert "HttpOnly" in set_cookie and "Secure" in set_cookie and "SameSite=strict" in set_cookie
+cookie = set_cookie.split(";", 1)[0]
+for path in ("/apps", "/connections"):
+    response = request(path, extra={"Cookie": cookie})
+    assert response.status == 200, (path, response.status, response.read())
+    assert b"<html" in response.read().lower()
+print("OpenDashboards: password login, signed session, forgery rejection and app pages passed")
+
 PY
 python3 "$fixture/probe.py" "$port" "$fixture/state/admin-password"
 [[ $(docker exec "$database" psql -U opendashboards -d opendashboards -Atc \
-  'SELECT count(*) FROM drizzle.__drizzle_migrations') == 5 ]]
+  'SELECT count(*) FROM drizzle.__drizzle_migrations') == 6 ]]
 docker exec "$database" psql -U opendashboards -d opendashboards -c \
   "CREATE TABLE smoke_retention (value text); INSERT INTO smoke_retention VALUES ('preserved');" >/dev/null
 # Restart exercises idempotent migrations with the same database and keys.
@@ -90,8 +103,9 @@ python3 "$fixture/probe.py" "$port" "$fixture/state/admin-password"
 printf '[{"host":"*.invalid","port":5432}]\n' > "$fixture/invalid-destinations.json"
 if timeout 45 docker run --rm --user "$smoke_uid:$smoke_gid" --network "$network" --read-only --cap-drop ALL \
   -e APP_ORIGIN=https://dashboards.example.invalid \
+  -e LLM_BASE_URL=http://unused-inference:11434/v1 -e LLM_MODEL=fixture-model \
   -e OPENDASHBOARDS_PRIVATE_DESTINATIONS_FILE=/run/config/private-destinations.json \
-  -v "$fixture/state:/data:ro" -v "$fixture/api-key:/run/secrets/thesys-api-key:ro" \
+  -v "$fixture/state:/data:ro" \
   -v "$fixture/invalid-destinations.json:/run/config/private-destinations.json:ro" \
   "$image" > "$fixture/invalid-destinations.log" 2>&1; then
   echo 'Container unexpectedly started with an invalid private destination rule' >&2
@@ -100,8 +114,9 @@ fi
 grep -Fq 'Invalid operator private destinations' "$fixture/invalid-destinations.log"
 if docker run --rm --user "$smoke_uid:$smoke_gid" --network none --read-only --cap-drop ALL \
   -e APP_ORIGIN=https://dashboards.example.invalid -v "$fixture/state:/data:ro" \
-  "$image" > "$fixture/missing-key.log" 2>&1; then
-  echo "Container unexpectedly started without its API key" >&2
+  "$image" > "$fixture/missing-inference.log" 2>&1; then
+  echo "Container unexpectedly started without an inference endpoint" >&2
   exit 1
 fi
-echo 'OpenDashboards: persistent credentials, migrations and missing-key rejection passed'
+grep -Fq 'LLM_BASE_URL and LLM_MODEL' "$fixture/missing-inference.log"
+echo 'OpenDashboards: persistent credentials, migrations and missing-inference rejection passed'
