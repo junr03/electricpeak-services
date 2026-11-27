@@ -15,7 +15,10 @@ replace("config/index.ts", 'return { ...common, ...ENVIRONMENT_SETTINGS[name] };
     ...(process.env.OPENDASHBOARDS_SELF_HOSTED === "true" && operatorPrivateDestinations !== null
       ? { network: { ...ENVIRONMENT_SETTINGS[name].network, privateDestinations: operatorPrivateDestinations } }
       : {}),
-    ...(process.env.OPENDASHBOARDS_SELF_HOSTED === "true" ? { demoData: { neonProject: "", datasets: [] } } : {}),
+    ...(process.env.OPENDASHBOARDS_SELF_HOSTED === "true" ? {
+      openui: { ...common.openui, model: process.env.OPENDASHBOARDS_MODEL?.trim() || common.openui.model },
+      demoData: { neonProject: "", datasets: [] },
+    } : {}),
   };`);
 replace("config/index.ts", '!env.SUPABASE_URL)', '!env.SUPABASE_URL && !env.OPENDASHBOARDS_AUTH_PASSWORD)');
 replace("config/index.ts", '!env.KMS_KEY_ID)', '!env.KMS_KEY_ID && !env.OPENDASHBOARDS_ENCRYPTION_KEY)');
