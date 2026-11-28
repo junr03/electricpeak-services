@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const state = process.env.OPENDASHBOARDS_STATE_DIR || "/data";
-const names = ["database-password", "admin-password", "encryption-key"];
+const names = ["database-password", "admin-password", "encryption-key", "session-secret"];
 if (process.argv[2] === "init") {
   mkdirSync(state, { recursive: true, mode: 0o700 });
   for (const name of names) {
@@ -20,16 +20,23 @@ if (process.argv[2] === "init") {
 }
 
 const read = (name) => readFileSync(`${state}/${name}`, "utf8").trim();
-const apiKey = readFileSync(process.env.THESYS_API_KEY_FILE || "/run/secrets/thesys-api-key", "utf8").trim();
-if (!apiKey) throw new Error("Thesys API key is empty");
+if (!process.env.LLM_BASE_URL?.trim() || !process.env.LLM_MODEL?.trim()) {
+  throw new Error("LLM_BASE_URL and LLM_MODEL must identify your inference server and model");
+}
+if (process.env.LLM_API_KEY_FILE) {
+  process.env.LLM_API_KEY = readFileSync(process.env.LLM_API_KEY_FILE, "utf8").trim();
+  if (!process.env.LLM_API_KEY) throw new Error("Inference API key file is empty");
+}
 const origin = new URL(process.env.APP_ORIGIN);
 if (origin.protocol !== "https:" || origin.origin !== process.env.APP_ORIGIN) {
   throw new Error("APP_ORIGIN must be an HTTPS origin without a path");
 }
 Object.assign(process.env, {
-  THESYS_API_KEY: apiKey,
-  OPENDASHBOARDS_AUTH_PASSWORD: read("admin-password"),
-  OPENDASHBOARDS_ENCRYPTION_KEY: read("encryption-key"),
+  AUTH_PASSWORD: read("admin-password"),
+  AUTH_SECRET: read("session-secret"),
+  AUTH_USER_ID: "self-hosted-admin",
+  AUTH_USER_EMAIL: "admin@localhost",
+  ENCRYPTION_KEY: read("encryption-key"),
   DATABASE_URL: `postgres://opendashboards:${read("database-password")}@${process.env.DATABASE_HOST || "opendashboards-db"}:5432/opendashboards`,
   OPENDASHBOARDS_SELF_HOSTED: "true",
   NEXT_TELEMETRY_DISABLED: "1",
