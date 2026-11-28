@@ -14,3 +14,12 @@ to preserve behavior. Reuse OSS tools. Do not implement the draft v1 API as part
 Validate with `nix flake check`, Rust formatting and Clippy, and the Raw Backup
 container smoke test. Keep dependencies locked; use Nix to update flake.lock.
 Use the connected GitHub connector for branch and pull request operations.
+
+## Container configuration
+
+- For custom services and packaged applications, make `docker-compose.yml` the runtime
+  configuration surface: prefer environment variables, using command arguments and
+  mounted config/secret files where needed.
+- Keep startup validation, readiness checks and initialization inside the container.
+- Limit Nix to host integration and deploying Compose; avoid duplicate application
+  settings in Nix options.
