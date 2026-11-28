@@ -28,11 +28,9 @@ docker network create "$network" >/dev/null
 docker run -d --name "$database" --network "$network" --network-alias opendashboards-db \
   -e POSTGRES_USER=opendashboards -e POSTGRES_DB=opendashboards \
   -e POSTGRES_PASSWORD_FILE=/run/secrets/database-password \
-  -v "$fixture/state/database-password:/run/secrets/database-password:ro" "$postgres_image" >/dev/null
-for _ in $(seq 1 40); do
-  if docker exec "$database" pg_isready -U opendashboards >/dev/null 2>&1; then break; fi
-  sleep 1
-done
+  -v "$fixture/state/database-password:/run/secrets/database-password:ro" \
+  --entrypoint sh "$postgres_image" -c 'sleep 3; exec docker-entrypoint.sh postgres' >/dev/null
+# Start immediately: application startup owns database readiness.
 docker run -d --init --user "$smoke_uid:$smoke_gid" --name "$app" --network "$network" \
   --read-only --cap-drop ALL --security-opt no-new-privileges:true \
   --tmpfs /tmp --tmpfs "/app/.next/cache:uid=$smoke_uid,gid=$smoke_gid" \

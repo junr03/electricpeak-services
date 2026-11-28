@@ -21,7 +21,8 @@ read newly written credentials or locally generated dashboards/history.
 - `LLM_BASE_URL` and `LLM_MODEL`: required, operator-owned OpenAI-compatible endpoint
   and actual model ID. Optional `LLM_DASHBOARD_MODEL` selects another model on that
   endpoint. Optional `LLM_API_KEY_FILE` loads a token from a read-only secret mount.
-  The image does not download weights or provision an inference server.
+  `LLM_WAIT_FOR_MODELS=true` waits for the selected model IDs in `/v1/models`
+  before migrating and starting. The app waits for PostgreSQL itself.
 - `/data`: persistent credential state, read-only for the application. Run the
   same image with `init` and a writable mount before starting PostgreSQL.
   Init creates random 256-bit `database-password`, `admin-password`, `encryption-key`
@@ -37,7 +38,7 @@ read newly written credentials or locally generated dashboards/history.
   Passwords are never printed by the image. Login issues a 12-hour HttpOnly,
   SameSite=Strict, Secure session cookie. This remains a single-operator service.
 
-The entrypoint applies additive migrations before starting. Use Docker's init
+The entrypoint waits for PostgreSQL, then applies additive migrations before starting. Use Docker's init
 process. A read-only filesystem needs tmpfs at `/tmp` and `/app/.next/cache`.
 Init needs no network. The app connects only to its PostgreSQL, configured model
 endpoint and selected data sources; product telemetry is off by default.
@@ -64,3 +65,26 @@ migrations, restart retention, invalid policy and absent inference configuration
 The TLS fixture exercises private source queries without production data.
 The fork's own browser suite covers generation, edits, local history and filters
 with a model stand-in. Actual model quality/capacity needs separate validation.
+
+## Local inference container
+
+`ollama/Dockerfile` adds a startup wrapper to the digest-pinned official Ollama
+image. Ollama has no built-in environment setting to pull models at startup;
+the wrapper uses its own CLI to serve, wait, and provision missing models.
+Set `OLLAMA_INITIAL_MODELS` to whitespace-separated model IDs and mount a persistent
+volume at `/root/.ollama`. Health becomes ready only after provisioning succeeds.
+Cached models are retained. Failed pulls stop the container; termination stops
+its server. Model ID, context length, parallelism and endpoint belong in Compose.
+The deployment shares `qwen3:8b` between app and Ollama using a YAML anchor.
+
+The inference image publishes in the existing public package with the tag
+`opendashboards:ollama-sha-COMMIT`; app tags remain `opendashboards:sha-COMMIT`.
+Deploy each by its immutable digest.
+
+```sh
+docker build -t opendashboards-ollama:test services/opendashboards/ollama
+bash scripts/smoke-opendashboards-ollama.sh opendashboards-ollama:test
+```
+
+The inference smoke test uses a CLI fixture to check missing-model downloads,
+cached restart, failed downloads and shutdown without fetching real weights.
