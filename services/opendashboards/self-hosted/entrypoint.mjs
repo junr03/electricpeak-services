@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { waitForDatabase, waitForModels } from "./readiness.mjs";
 
 const state = process.env.OPENDASHBOARDS_STATE_DIR || "/data";
 const names = ["database-password", "admin-password", "encryption-key", "session-secret"];
@@ -42,8 +43,18 @@ Object.assign(process.env, {
   NEXT_TELEMETRY_DISABLED: "1",
 });
 
-// A healthy Postgres dependency starts first. Apply versioned, additive migrations
-// on every start; never run the destructive development db:reset command.
+// Compose describes ordering; readiness belongs to the container so it also
+// works with orchestrators that omit Compose's service_healthy condition.
+await waitForDatabase(process.env.DATABASE_URL);
+if (process.env.LLM_WAIT_FOR_MODELS === "true") {
+  await waitForModels({
+    baseUrl: process.env.LLM_BASE_URL,
+    models: [...new Set([process.env.LLM_MODEL, process.env.LLM_DASHBOARD_MODEL].filter(Boolean))],
+    apiKey: process.env.LLM_API_KEY,
+  });
+}
+
+// Apply versioned, additive migrations; never run development db:reset.
 const migration = spawnSync(process.execPath, ["scripts/db-migrate.mjs"], { stdio: "inherit" });
 if (migration.status !== 0) process.exit(migration.status || 1);
 process.execve(process.execPath, [process.execPath, "node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0"], process.env);

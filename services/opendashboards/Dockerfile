@@ -9,7 +9,7 @@ RUN pnpm install --frozen-lockfile
 COPY overlay /overlay
 COPY self-hosted ./self-hosted
 COPY apply-overlay.mjs /tmp/apply-overlay.mjs
-RUN node /tmp/apply-overlay.mjs && pnpm exec vitest run --config self-hosted/vitest.config.mts
+RUN node /tmp/apply-overlay.mjs && pnpm exec vitest run --config self-hosted/vitest.config.mts && node --test self-hosted/readiness.test.mjs
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
